@@ -6,87 +6,287 @@
 <title>Quantinerie — Suivi des heures</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-  :root{--bleu:#1F4E78;--bleu2:#2E75B6;--bord:#E4E4DF;--gris:#6B6B66;--fond:#F2F1EC;--vert:#2E7D32;--rouge:#C0392B;}
+  :root{--bleu:#1F4E78;--bleu2:#2E75B6;--bord:#E4E4DF;--gris:#6B6B66;--fond:#F2F1EC;--vert:#2E7D32;--vertbg:#E9F5EC;--orange:#B4611C;--orbg:#FCEEE2;--rouge:#C0392B;--rougebg:#FBECEA;}
   *{box-sizing:border-box;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
-  body{margin:0;min-height:100vh;background:var(--fond);display:flex;align-items:center;justify-content:center;padding:20px;color:#20201E;}
-  .card{background:#fff;border:1px solid var(--bord);border-radius:16px;max-width:390px;width:100%;padding:34px 30px;box-shadow:0 8px 30px rgba(0,0,0,.06);text-align:center;}
-  .logo{height:60px;width:auto;margin-bottom:4px;}
+  body{margin:0;background:var(--fond);color:#20201E;}
+  .hidden{display:none!important;}
+  /* connexion */
+  .center{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .card{background:#fff;border:1px solid var(--bord);border-radius:16px;max-width:390px;width:100%;padding:32px 28px;box-shadow:0 8px 30px rgba(0,0,0,.06);text-align:center;}
+  .logo{height:58px;width:auto;margin-bottom:4px;}
   h1{font-size:18px;margin:12px 0 2px;color:var(--bleu);}
-  .sub{font-size:13px;color:var(--gris);margin-bottom:22px;}
-  label{display:block;text-align:left;font-size:12px;color:var(--gris);margin:14px 0 4px;}
-  input{width:100%;padding:11px;border:1px solid var(--bord);border-radius:9px;font-size:15px;}
-  button{width:100%;margin-top:20px;padding:12px;border:none;border-radius:9px;background:var(--bleu);color:#fff;font-size:15px;font-weight:600;cursor:pointer;}
-  button:hover{background:#173a5c;} button:disabled{opacity:.6;cursor:default;}
-  .msg{margin-top:16px;font-size:13px;min-height:18px;}
-  .msg.err{color:var(--rouge);} .msg.ok{color:var(--vert);}
-  .foot{margin-top:20px;font-size:11px;color:#9a9a94;}
-  .chip{display:inline-block;font-size:12px;font-weight:600;padding:3px 12px;border-radius:20px;background:#E6F1FB;color:var(--bleu2);}
-  .lien{margin-top:16px;font-size:12px;color:var(--bleu2);cursor:pointer;}
-  .hidden{display:none;}
+  .sub{font-size:13px;color:var(--gris);margin-bottom:20px;}
+  label{display:block;text-align:left;font-size:12px;color:var(--gris);margin:12px 0 4px;}
+  input,select{width:100%;padding:11px;border:1px solid var(--bord);border-radius:9px;font-size:15px;background:#fff;}
+  .btn{width:100%;margin-top:18px;padding:12px;border:none;border-radius:9px;background:var(--bleu);color:#fff;font-size:15px;font-weight:600;cursor:pointer;}
+  .btn:hover{background:#173a5c;} .btn:disabled{opacity:.6;}
+  .btn2{background:#fff;color:var(--bleu);border:1px solid var(--bord);}
+  .msg{margin-top:14px;font-size:13px;min-height:16px;} .msg.err{color:var(--rouge);} .msg.ok{color:var(--vert);}
+  /* barre appli */
+  .top{background:var(--bleu);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:5;}
+  .top .lg{height:26px;} .top .who{font-size:13px;opacity:.9;margin-left:auto;}
+  .top button{background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:7px;padding:7px 10px;font-size:12px;cursor:pointer;}
+  .wrap{max-width:640px;margin:0 auto;padding:16px;}
+  .onglets{display:flex;gap:6px;margin-bottom:14px;}
+  .onglets button{flex:1;padding:10px;border:1px solid var(--bord);background:#fff;border-radius:9px;font-size:14px;font-weight:600;color:var(--gris);cursor:pointer;}
+  .onglets button.on{background:var(--bleu);color:#fff;border-color:var(--bleu);}
+  .semnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .semnav button{width:38px;height:38px;border:1px solid var(--bord);background:#fff;border-radius:9px;font-size:18px;color:var(--bleu2);cursor:pointer;}
+  .semnav .lab{font-size:15px;font-weight:600;text-align:center;}
+  .banniere{padding:11px 14px;border-radius:10px;font-size:14px;font-weight:600;margin-bottom:12px;text-align:center;}
+  .jour{background:#fff;border:1px solid var(--bord);border-radius:12px;padding:12px 14px;margin-bottom:10px;}
+  .jhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .jnom{font-weight:600;font-size:14px;} .jtot{font-size:13px;color:var(--bleu2);font-weight:600;}
+  .hres{display:flex;gap:8px;margin-top:8px;}
+  .hres>div{flex:1;} .hres label{margin:0 0 3px;font-size:11px;} .hres input{padding:9px;text-align:center;}
+  .we .jnom{color:var(--gris);}
+  .save{position:sticky;bottom:0;padding:12px 0;background:linear-gradient(transparent,var(--fond) 30%);}
+  /* calendrier historique */
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
+  .cal .dow{font-size:11px;color:var(--gris);text-align:center;}
+  .cell{min-height:52px;border-radius:8px;background:#fff;border:1px solid var(--bord);padding:4px 5px;font-size:11px;}
+  .cell .n{color:var(--gris);} .cell .h{display:block;font-weight:600;font-size:13px;margin-top:3px;}
+  .cell.t{background:var(--vertbg);color:var(--vert);} .cell.d{background:var(--orbg);color:var(--orange);}
+  .cell.abs{background:#EEF0F2;color:#55606b;} .cell.vide{background:transparent;border:none;}
+  .foot{font-size:12px;color:var(--gris);margin-top:10px;text-align:center;}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:20px;z-index:20;}
 </style>
 </head>
 <body>
+
+<!-- CONNEXION -->
+<div id="vue-login" class="center">
   <div class="card">
     <img class="logo" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGcAAAAzCAYAAACKXhYYAAAACXBIWXMAAAsTAAALEwEAmpwYAAAF0WlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgNy4yLWMwMDAgNzkuMWI2NWE3OWI0LCAyMDIyLzA2LzEzLTIyOjAxOjAxICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOmRjPSJodHRwOi8vcHVybC5vcmcvZGMvZWxlbWVudHMvMS4xLyIgeG1sbnM6cGhvdG9zaG9wPSJodHRwOi8vbnMuYWRvYmUuY29tL3Bob3Rvc2hvcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RFdnQ9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZUV2ZW50IyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgMjMuNSAoTWFjaW50b3NoKSIgeG1wOkNyZWF0ZURhdGU9IjIwMjItMTItMTJUMTM6NDY6MzArMDE6MDAiIHhtcDpNb2RpZnlEYXRlPSIyMDIyLTEyLTEyVDEzOjUyOjI5KzAxOjAwIiB4bXA6TWV0YWRhdGFEYXRlPSIyMDIyLTEyLTEyVDEzOjUyOjI5KzAxOjAwIiBkYzpmb3JtYXQ9ImltYWdlL3BuZyIgcGhvdG9zaG9wOkNvbG9yTW9kZT0iMyIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDpkZDAwNThhMy05NjQ5LTQxMzQtODM0NS1kZmI0NGNhZjhlMDciIHhtcE1NOkRvY3VtZW50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" alt="La Quantinerie">
-
-    <!-- Écran connexion -->
-    <div id="vue-login">
-      <h1>Suivi des heures</h1>
-      <div class="sub">Connexion à ton espace</div>
-      <label for="email">Email</label>
-      <input id="email" type="email" placeholder="prenom@laquantinerie.fr" autocomplete="username">
-      <label for="mdp">Mot de passe</label>
-      <input id="mdp" type="password" placeholder="••••••••" autocomplete="current-password">
-      <button id="btn-login" onclick="seConnecter()">Se connecter</button>
-      <div id="msg" class="msg"></div>
-    </div>
-
-    <!-- Écran connecté (provisoire — valide que tout fonctionne) -->
-    <div id="vue-connecte" class="hidden">
-      <h1>Bienvenue</h1>
-      <div class="sub">Tu es bien connecté à la base sécurisée</div>
-      <p style="font-size:15px;margin:6px 0"><b id="c-nom"></b></p>
-      <p style="margin:6px 0"><span class="chip" id="c-role"></span></p>
-      <p style="font-size:12px;color:var(--gris);margin-top:16px">Cet écran confirme que la connexion, la base de données et le cloisonnement fonctionnent. Les vrais écrans (saisie, tableau de bord…) arrivent à l'étape suivante.</p>
-      <button onclick="seDeconnecter()" style="background:#fff;color:var(--bleu);border:1px solid var(--bord)">Se déconnecter</button>
-    </div>
-
-    <div class="foot">La Quantinerie · application interne</div>
+    <h1>Suivi des heures</h1>
+    <div class="sub">Connexion à ton espace</div>
+    <label for="email">Email</label>
+    <input id="email" type="email" placeholder="prenom@exemple.fr" autocomplete="username">
+    <label for="mdp">Mot de passe</label>
+    <input id="mdp" type="password" placeholder="••••••••" autocomplete="current-password">
+    <button class="btn" id="btn-login" onclick="seConnecter()">Se connecter</button>
+    <div id="msg" class="msg"></div>
   </div>
+</div>
+
+<!-- APPLI -->
+<div id="vue-app" class="hidden">
+  <div class="top">
+    <img class="lg" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGcAAAAzCAYAAACKXhYYAAAACXBIWXMAAAsTAAALEwEAmpwYAAAF0WlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgNy4yLWMwMDAgNzkuMWI2NWE3OWI0LCAyMDIyLzA2LzEzLTIyOjAxOjAxICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOmRjPSJodHRwOi8vcHVybC5vcmcvZGMvZWxlbWVudHMvMS4xLyIgeG1sbnM6cGhvdG9zaG9wPSJodHRwOi8vbnMuYWRvYmUuY29tL3Bob3Rvc2hvcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RFdnQ9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZUV2ZW50IyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgMjMuNSAoTWFjaW50b3NoKSIgeG1wOkNyZWF0ZURhdGU9IjIwMjItMTItMTJUMTM6NDY6MzArMDE6MDAiIHhtcDpNb2RpZnlEYXRlPSIyMDIyLTEyLTEyVDEzOjUyOjI5KzAxOjAwIiB4bXA6TWV0YWRhdGFEYXRlPSIyMDIyLTEyLTEyVDEzOjUyOjI5KzAxOjAwIiBkYzpmb3JtYXQ9ImltYWdlL3BuZyIgcGhvdG9zaG9wOkNvbG9yTW9kZT0iMyIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDpkZDAwNThhMy05NjQ5LTQxMzQtODM0NS1kZmI0NGNhZjhlMDciIHhtcE1NOkRvY3VtZW50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" alt="">
+    <span class="who" id="who"></span>
+    <button onclick="ouvrirMdp()">Mot de passe</button>
+    <button onclick="seDeconnecter()">Quitter</button>
+  </div>
+  <div class="wrap">
+
+    <!-- SALARIÉ -->
+    <div id="vue-salarie" class="hidden">
+      <div class="onglets">
+        <button id="tab-sem" class="on" onclick="ongletSalarie('sem')">Ma semaine</button>
+        <button id="tab-hist" onclick="ongletSalarie('hist')">Historique</button>
+      </div>
+
+      <div id="pan-sem">
+        <div class="semnav">
+          <button onclick="semaine(-1)">‹</button>
+          <div class="lab" id="sem-lab"></div>
+          <button onclick="semaine(1)">›</button>
+        </div>
+        <div id="banniere48" class="banniere"></div>
+        <div id="jours"></div>
+        <div class="save"><button class="btn" id="btn-save" onclick="enregistrerSemaine()">Enregistrer ma semaine</button>
+          <div id="msg-save" class="msg" style="text-align:center"></div></div>
+        <div class="foot">Tu peux corriger tant que la Direction n'a pas validé le mois. Indique la vérité : l'alerte 48 h te prévient mais ne bloque jamais ta saisie.</div>
+      </div>
+
+      <div id="pan-hist" class="hidden">
+        <div class="semnav">
+          <button onclick="histMois(-1)">‹</button>
+          <div class="lab" id="hist-lab"></div>
+          <button onclick="histMois(1)">›</button>
+        </div>
+        <div class="cal" id="hist-cal"></div>
+        <div class="foot">Historique en lecture seule. Vert = vigne · Orange = distillerie · Gris = absence.</div>
+      </div>
+    </div>
+
+    <!-- DIRECTION (placeholder) -->
+    <div id="vue-direction" class="hidden">
+      <div class="card" style="max-width:none;text-align:left">
+        <h1>Espace Direction</h1>
+        <p style="color:var(--gris);font-size:14px">La connexion et ton rôle Direction fonctionnent. Le tableau de bord complet (validation, tableau officiel, contrôle) sera branché à l'étape suivante — il reprendra le prototype que tu as déjà validé.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODAL mot de passe -->
+<div id="modal-mdp" class="modal hidden">
+  <div class="card">
+    <h1>Changer mon mot de passe</h1>
+    <label for="mdp1">Nouveau mot de passe</label>
+    <input id="mdp1" type="password" placeholder="au moins 6 caractères">
+    <label for="mdp2">Confirmer</label>
+    <input id="mdp2" type="password">
+    <button class="btn" onclick="enregistrerMdp()">Enregistrer</button>
+    <button class="btn btn2" onclick="fermerMdp()">Annuler</button>
+    <div id="msg-mdp" class="msg"></div>
+  </div>
+</div>
 
 <script>
-  const SUPABASE_URL = 'https://svbodvzehnwrtctrxtoh.supabase.co';
-  const SUPABASE_KEY = 'sb_publishable_2LOkbFcfwZn2CaelsmoHDw_uLT5p08N';
-  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  const SUPABASE_URL='https://svbodvzehnwrtctrxtoh.supabase.co';
+  const SUPABASE_KEY='sb_publishable_2LOkbFcfwZn2CaelsmoHDw_uLT5p08N';
+  const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+  const $=id=>document.getElementById(id);
 
-  const $ = id => document.getElementById(id);
-  function montrer(vue){ $('vue-login').classList.toggle('hidden', vue!=='login'); $('vue-connecte').classList.toggle('hidden', vue!=='connecte'); }
-  function message(txt, type){ const m=$('msg'); m.textContent=txt||''; m.className='msg '+(type||''); }
+  const TYPES=[['Travaille','Travaillé'],['Conge','Congé'],['Recup HS','Récup HS'],['Recup distillation','Récup distillation'],['Ferie','Férié'],['Autre absence','Autre absence']];
+  const JOURS=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+  const MOISNOM=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  let USER=null, PROFIL=null, lundi=null, hMois=null;
 
+  function pad(n){return(''+n).padStart(2,'0');}
+  function iso(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+  function lundiDe(d){const x=new Date(d);x.setDate(x.getDate()-((x.getDay()+6)%7));x.setHours(0,0,0,0);return x;}
+  function addJ(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
+  function r1(v){return Math.round(v*10)/10;}
+  function labelType(v){const t=TYPES.find(x=>x[0]===v);return t?t[1]:v;}
+
+  // ---------- CONNEXION ----------
+  function vue(v){['vue-login','vue-app'].forEach(x=>$(x).classList.toggle('hidden',x!==v));}
+  function message(t,c){const m=$('msg');m.textContent=t||'';m.className='msg '+(c||'');}
   async function seConnecter(){
-    const email=$('email').value.trim(), mdp=$('mdp').value;
-    if(!email||!mdp){ message('Renseigne ton email et ton mot de passe.','err'); return; }
-    $('btn-login').disabled=true; message('Connexion…');
-    const { error } = await sb.auth.signInWithPassword({ email, password: mdp });
+    const email=$('email').value.trim(),mdp=$('mdp').value;
+    if(!email||!mdp){message('Renseigne ton email et ton mot de passe.','err');return;}
+    $('btn-login').disabled=true;message('Connexion…');
+    const {error}=await sb.auth.signInWithPassword({email,password:mdp});
     $('btn-login').disabled=false;
-    if(error){ message('Email ou mot de passe incorrect.','err'); return; }
-    message(''); await afficherProfil();
+    if(error){message('Email ou mot de passe incorrect.','err');return;}
+    message('');await demarrer();
+  }
+  async function seDeconnecter(){await sb.auth.signOut();$('mdp').value='';vue('vue-login');}
+
+  async function demarrer(){
+    const {data:{user}}=await sb.auth.getUser();
+    if(!user){vue('vue-login');return;}
+    USER=user;
+    const {data:p}=await sb.from('profiles').select('nom,role').eq('id',user.id).single();
+    PROFIL=p||{nom:user.email,role:'salarie'};
+    $('who').textContent=PROFIL.nom;
+    vue('vue-app');
+    if(PROFIL.role==='direction'){ $('vue-direction').classList.remove('hidden'); $('vue-salarie').classList.add('hidden'); }
+    else{ $('vue-salarie').classList.remove('hidden'); $('vue-direction').classList.add('hidden');
+      lundi=lundiDe(new Date()); await renderSemaine();
+      hMois=new Date(); hMois.setDate(1); }
   }
 
-  async function afficherProfil(){
-    const { data:{ user } } = await sb.auth.getUser();
-    if(!user){ montrer('login'); return; }
-    const { data:profil } = await sb.from('profiles').select('nom, role').eq('id', user.id).single();
-    $('c-nom').textContent = profil ? profil.nom : user.email;
-    $('c-role').textContent = profil && profil.role==='direction' ? 'Direction' : 'Salarié';
-    montrer('connecte');
+  // ---------- MA SEMAINE ----------
+  function ongletSalarie(o){
+    $('tab-sem').classList.toggle('on',o==='sem'); $('tab-hist').classList.toggle('on',o==='hist');
+    $('pan-sem').classList.toggle('hidden',o!=='sem'); $('pan-hist').classList.toggle('hidden',o!=='hist');
+    if(o==='hist') renderHistorique();
+  }
+  function semaine(n){lundi=addJ(lundi,7*n);renderSemaine();}
+
+  async function renderSemaine(){
+    const fin=addJ(lundi,6);
+    $('sem-lab').textContent='Semaine du '+pad(lundi.getDate())+' '+MOISNOM[lundi.getMonth()]+' au '+pad(fin.getDate())+' '+MOISNOM[fin.getMonth()];
+    // charge l'existant
+    const {data}=await sb.from('declarations').select('*').eq('salarie',USER.id).gte('jour',iso(lundi)).lte('jour',iso(fin));
+    const map={}; (data||[]).forEach(r=>map[r.jour]=r);
+    let h='';
+    for(let i=0;i<6+1;i++){
+      const d=addJ(lundi,i), key=iso(d), r=map[key]||null, we=(i>=5);
+      const opts=TYPES.map(t=>`<option value="${t[0]}"${r&&r.type===t[0]?' selected':''}>${t[1]}</option>`).join('');
+      h+=`<div class="jour ${we?'we':''}">
+        <div class="jhead"><span class="jnom">${JOURS[i]} ${pad(d.getDate())}/${pad(d.getMonth()+1)}</span><span class="jtot" id="jtot-${i}"></span></div>
+        <select id="type-${i}" onchange="majType(${i})">${opts}</select>
+        <div class="hres" id="hres-${i}">
+          <div><label>Vigne</label><input id="v-${i}" type="number" min="0" step="0.5" value="${r?(+r.vigne||''):''}" oninput="recalc()"></div>
+          <div><label>Dist. jour</label><input id="dj-${i}" type="number" min="0" step="0.5" value="${r?(+r.dist_jour||''):''}" oninput="recalc()"></div>
+          <div><label>Dist. nuit</label><input id="dn-${i}" type="number" min="0" step="0.5" value="${r?(+r.dist_nuit||''):''}" oninput="recalc()"></div>
+        </div></div>`;
+    }
+    $('jours').innerHTML=h;
+    for(let i=0;i<7;i++) majType(i,true);
+    recalc();
+  }
+  function majType(i,silent){
+    const t=$('type-'+i).value;
+    $('hres-'+i).style.display = (t==='Travaille')?'flex':'none';
+    if(t!=='Travaille'){ $('v-'+i).value='';$('dj-'+i).value='';$('dn-'+i).value=''; }
+    if(!silent) recalc();
+  }
+  function jourTotal(i){ if($('type-'+i).value!=='Travaille')return 0;
+    return (+$('v-'+i).value||0)+(+$('dj-'+i).value||0)+(+$('dn-'+i).value||0); }
+  function recalc(){
+    let tot=0;
+    for(let i=0;i<7;i++){const jt=r1(jourTotal(i));tot+=jt;$('jtot-'+i).textContent=jt?jt+' h':( $('type-'+i).value!=='Travaille'?labelType($('type-'+i).value):'');}
+    tot=r1(tot);
+    const b=$('banniere48');
+    if(tot>48){b.style.background='var(--rougebg)';b.style.color='var(--rouge)';b.textContent='⚠ '+tot+' h cette semaine — au-delà de 48 h. Signale-le à la Direction.';}
+    else if(tot>=45){b.style.background='var(--orbg)';b.style.color='var(--orange)';b.textContent=tot+' h cette semaine — proche de la limite de 48 h.';}
+    else{b.style.background='var(--vertbg)';b.style.color='var(--vert)';b.textContent=tot+' h cette semaine.';}
+  }
+  async function enregistrerSemaine(){
+    $('btn-save').disabled=true; $('msg-save').textContent='Enregistrement…'; $('msg-save').className='msg';
+    const up=[], vides=[];
+    for(let i=0;i<7;i++){
+      const d=addJ(lundi,i), key=iso(d), type=$('type-'+i).value;
+      const v=+$('v-'+i).value||0,dj=+$('dj-'+i).value||0,dn=+$('dn-'+i).value||0;
+      const contenu = (type!=='Travaille') || (v+dj+dn>0);
+      if(contenu) up.push({salarie:USER.id,jour:key,type,vigne:v,dist_jour:dj,dist_nuit:dn,maj_le:new Date().toISOString()});
+      else vides.push(key);
+    }
+    let err=null;
+    if(up.length){const r=await sb.from('declarations').upsert(up,{onConflict:'salarie,jour'});err=r.error;}
+    if(!err && vides.length){const r=await sb.from('declarations').delete().eq('salarie',USER.id).in('jour',vides);err=r.error;}
+    $('btn-save').disabled=false;
+    if(err){$('msg-save').textContent='Erreur : '+err.message;$('msg-save').className='msg err';return;}
+    $('msg-save').textContent='Semaine enregistrée ✓';$('msg-save').className='msg ok';
+    setTimeout(()=>{$('msg-save').textContent='';},2500);
   }
 
-  async function seDeconnecter(){ await sb.auth.signOut(); $('email').value=''; $('mdp').value=''; montrer('login'); }
+  // ---------- HISTORIQUE ----------
+  function histMois(n){hMois.setMonth(hMois.getMonth()+n);renderHistorique();}
+  async function renderHistorique(){
+    const an=hMois.getFullYear(),mo=hMois.getMonth();
+    $('hist-lab').textContent=MOISNOM[mo]+' '+an;
+    const d1=new Date(an,mo,1), d2=new Date(an,mo+1,0);
+    const {data}=await sb.from('declarations').select('*').eq('salarie',USER.id).gte('jour',iso(d1)).lte('jour',iso(d2));
+    const map={}; (data||[]).forEach(r=>map[r.jour]=r);
+    let h=''; ['L','M','M','J','V','S','D'].forEach(x=>h+=`<div class="dow">${x}</div>`);
+    const dec=(new Date(an,mo,1).getDay()+6)%7;
+    for(let i=0;i<dec;i++)h+='<div class="cell vide"></div>';
+    const nb=d2.getDate();
+    for(let d=1;d<=nb;d++){
+      const r=map[an+'-'+pad(mo+1)+'-'+pad(d)];
+      if(!r){h+=`<div class="cell"><span class="n">${d}</span></div>`;continue;}
+      let cls='abs',txt=labelType(r.type);
+      const w=(+r.vigne||0)+(+r.dist_jour||0)+(+r.dist_nuit||0);
+      if(r.type==='Travaille'){ cls=((+r.dist_jour||0)+(+r.dist_nuit||0)>0)?'d':'t'; txt=r1(w)+' h'; }
+      h+=`<div class="cell ${cls}"><span class="n">${d}</span><span class="h">${txt}</span></div>`;
+    }
+    $('hist-cal').innerHTML=h;
+  }
 
-  // Au chargement : si déjà connecté, on va direct sur l'écran connecté
-  (async()=>{ const { data:{ session } } = await sb.auth.getSession(); if(session) await afficherProfil(); else montrer('login'); })();
-  document.addEventListener('keydown', e=>{ if(e.key==='Enter' && !$('vue-login').classList.contains('hidden')) seConnecter(); });
+  // ---------- MOT DE PASSE ----------
+  function ouvrirMdp(){$('modal-mdp').classList.remove('hidden');$('mdp1').value='';$('mdp2').value='';$('msg-mdp').textContent='';}
+  function fermerMdp(){$('modal-mdp').classList.add('hidden');}
+  async function enregistrerMdp(){
+    const a=$('mdp1').value,b=$('mdp2').value;
+    if(a.length<6){$('msg-mdp').textContent='6 caractères minimum.';$('msg-mdp').className='msg err';return;}
+    if(a!==b){$('msg-mdp').textContent='Les deux mots de passe diffèrent.';$('msg-mdp').className='msg err';return;}
+    const {error}=await sb.auth.updateUser({password:a});
+    if(error){$('msg-mdp').textContent='Erreur : '+error.message;$('msg-mdp').className='msg err';return;}
+    $('msg-mdp').textContent='Mot de passe modifié ✓';$('msg-mdp').className='msg ok';
+    setTimeout(fermerMdp,1500);
+  }
+
+  // ---------- DÉMARRAGE ----------
+  (async()=>{const {data:{session}}=await sb.auth.getSession();if(session)await demarrer();else vue('vue-login');})();
+  document.addEventListener('keydown',e=>{if(e.key==='Enter'&&!$('vue-login').classList.contains('hidden'))seConnecter();});
 </script>
 </body>
 </html>
