@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quantinerie — Suivi des heures</title>
+<style>
+  :root{--bleu:#1F4E78;--bleu2:#2E75B6;--bord:#E4E4DF;--gris:#6B6B66;--fond:#F2F1EC;}
+  *{box-sizing:border-box;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  body{margin:0;min-height:100vh;background:var(--fond);display:flex;align-items:center;justify-content:center;padding:20px;color:#20201E;}
+  .card{background:#fff;border:1px solid var(--bord);border-radius:16px;max-width:380px;width:100%;padding:34px 30px;box-shadow:0 8px 30px rgba(0,0,0,.06);text-align:center;}
+  .logo{height:64px;width:auto;margin-bottom:6px;}
+  h1{font-size:18px;margin:12px 0 2px;color:var(--bleu);}
+  .sub{font-size:13px;color:var(--gris);margin-bottom:24px;}
+  label{display:block;text-align:left;font-size:12px;color:var(--gris);margin:14px 0 4px;}
+  select,input{width:100%;padding:11px;border:1px solid var(--bord);border-radius:9px;font-size:15px;}
+  button{width:100%;margin-top:20px;padding:12px;border:none;border-radius:9px;background:var(--bleu);color:#fff;font-size:15px;font-weight:600;cursor:pointer;}
+  button:hover{background:#173a5c;}
+  .note{margin-top:22px;font-size:12px;color:var(--gris);line-height:1.5;}
+  .foot{margin-top:18px;font-size:11px;color:#9a9a94;}
+</style>
+</head>
+<body>
+  <div class="card">
+    <img class="logo" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGcAAAAzCAYAAACKXhYYAAAACXBIWXMAAAsTAAALEwEAmpwYAAAF0WlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgNy4yLWMwMDAgNzkuMWI2NWE3OWI0LCAyMDIyLzA2LzEzLTIyOjAxOjAxICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOmRjPSJodHRwOi8vcHVybC5vcmcvZGMvZWxlbWVudHMvMS4xLyIgeG1sbnM6cGhvdG9zaG9wPSJodHRwOi8vbnMuYWRvYmUuY29tL3Bob3Rvc2hvcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RFdnQ9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZUV2ZW50IyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgMjMuNSAoTWFjaW50b3NoKSIgeG1wOkNyZWF0ZURhdGU9IjIwMjItMTItMTJUMTM6NDY6MzArMDE6MDAiIHhtcDpNb2RpZnlEYXRlPSIyMDIyLTEyLTEyVDEzOjUyOjI5KzAxOjAwIiB4bXA6TWV0YWRhdGFEYXRlPSIyMDIyLTEyLTEyVDEzOjUyOjI5KzAxOjAwIiBkYzpmb3JtYXQ9ImltYWdlL3BuZyIgcGhvdG9zaG9wOkNvbG9yTW9kZT0iMyIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDpkZDAwNThhMy05NjQ5LTQxMzQtODM0NS1kZmI0NGNhZjhlMDciIHhtcE1NOkRvY3VtZW50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" alt="La Quantinerie">
+    <h1>Suivi des heures</h1>
+    <div class="sub">Espace de connexion</div>
+    <label for="nom">Salarié</label>
+    <select id="nom">
+      <option>Sélectionne ton nom…</option>
+      <option>Samuel</option><option>Marie-Christine</option><option>Bruno</option><option>Ted</option><option>Mathis</option>
+      <option>— Direction —</option>
+    </select>
+    <label for="mdp">Mot de passe</label>
+    <input id="mdp" type="password" placeholder="••••••••">
+    <button onclick="alert('Connexion bientôt disponible — cette page valide la mise en ligne.');">Se connecter</button>
+    <div class="note">Première version en ligne — la connexion sécurisée sera activée à l'étape suivante.</div>
+    <div class="foot">La Quantinerie · application interne</div>
+  </div>
+</body>
+</html>
