@@ -110,11 +110,20 @@
       </div>
     </div>
 
-    <!-- DIRECTION (placeholder) -->
+    <!-- DIRECTION -->
     <div id="vue-direction" class="hidden">
-      <div class="card" style="max-width:none;text-align:left">
-        <h1>Espace Direction</h1>
-        <p style="color:var(--gris);font-size:14px">La connexion et ton rôle Direction fonctionnent. Le tableau de bord complet (validation, tableau officiel, contrôle) sera branché à l'étape suivante — il reprendra le prototype que tu as déjà validé.</p>
+      <div id="dir-liste">
+        <div class="semnav"><button onclick="dirMois(-1)">‹</button><div class="lab" id="dir-lab"></div><button onclick="dirMois(1)">›</button></div>
+        <div id="dir-table"></div>
+        <div class="foot">Heures du mois calculées à partir des déclarations des salariés. Clique un salarié pour voir son détail.</div>
+      </div>
+      <div id="dir-fiche" class="hidden">
+        <button class="btn btn2" style="width:auto;margin:0 0 12px" onclick="dirRetour()">‹ Retour à la liste</button>
+        <h1 id="df-nom" style="text-align:left"></h1>
+        <div class="semnav"><button onclick="dfMois(-1)">‹</button><div class="lab" id="df-lab"></div><button onclick="dfMois(1)">›</button></div>
+        <div id="df-banner" class="banniere"></div>
+        <div class="cal" id="df-cal"></div>
+        <div class="foot">Déclarations du salarié (lecture). La correction et le tableau officiel arriveront à l'étape suivante.</div>
       </div>
     </div>
 
@@ -175,7 +184,7 @@
     PROFIL=p||{nom:user.email,role:'salarie'};
     $('who').textContent=PROFIL.nom;
     vue('vue-app');
-    if(PROFIL.role==='direction'){ $('vue-direction').classList.remove('hidden'); $('vue-salarie').classList.add('hidden'); }
+    if(PROFIL.role==='direction'){ $('vue-direction').classList.remove('hidden'); $('vue-salarie').classList.add('hidden'); dMoisDir=new Date(); dMoisDir.setDate(1); await renderDirListe(); }
     else{ $('vue-salarie').classList.remove('hidden'); $('vue-direction').classList.add('hidden');
       lundi=lundiDe(new Date()); await renderSemaine();
       hMois=new Date(); hMois.setDate(1); }
@@ -250,16 +259,11 @@
 
   // ---------- HISTORIQUE ----------
   function histMois(n){hMois.setMonth(hMois.getMonth()+n);renderHistorique();}
-  async function renderHistorique(){
-    const an=hMois.getFullYear(),mo=hMois.getMonth();
-    $('hist-lab').textContent=MOISNOM[mo]+' '+an;
-    const d1=new Date(an,mo,1), d2=new Date(an,mo+1,0);
-    const {data}=await sb.from('declarations').select('*').eq('salarie',USER.id).gte('jour',iso(d1)).lte('jour',iso(d2));
-    const map={}; (data||[]).forEach(r=>map[r.jour]=r);
+  function buildCal(map,an,mo){
     let h=''; ['L','M','M','J','V','S','D'].forEach(x=>h+=`<div class="dow">${x}</div>`);
     const dec=(new Date(an,mo,1).getDay()+6)%7;
     for(let i=0;i<dec;i++)h+='<div class="cell vide"></div>';
-    const nb=d2.getDate();
+    const nb=new Date(an,mo+1,0).getDate();
     for(let d=1;d<=nb;d++){
       const r=map[an+'-'+pad(mo+1)+'-'+pad(d)];
       if(!r){h+=`<div class="cell"><span class="n">${d}</span></div>`;continue;}
@@ -268,7 +272,46 @@
       if(r.type==='Travaille'){ cls=((+r.dist_jour||0)+(+r.dist_nuit||0)>0)?'d':'t'; txt=r1(w)+' h'; }
       h+=`<div class="cell ${cls}"><span class="n">${d}</span><span class="h">${txt}</span></div>`;
     }
-    $('hist-cal').innerHTML=h;
+    return h;
+  }
+  async function renderHistorique(){
+    const an=hMois.getFullYear(),mo=hMois.getMonth();
+    $('hist-lab').textContent=MOISNOM[mo]+' '+an;
+    const d1=new Date(an,mo,1),d2=new Date(an,mo+1,0);
+    const {data}=await sb.from('declarations').select('*').eq('salarie',USER.id).gte('jour',iso(d1)).lte('jour',iso(d2));
+    const map={};(data||[]).forEach(r=>map[r.jour]=r);
+    $('hist-cal').innerHTML=buildCal(map,an,mo);
+  }
+
+  // ---------- ESPACE DIRECTION ----------
+  let dMoisDir=null, dfMoisD=null, dfId=null, dfNom='';
+  function dirMois(n){dMoisDir.setMonth(dMoisDir.getMonth()+n);renderDirListe();}
+  async function renderDirListe(){
+    const an=dMoisDir.getFullYear(),mo=dMoisDir.getMonth();
+    $('dir-lab').textContent='Salariés — '+MOISNOM[mo]+' '+an;
+    const d1=new Date(an,mo,1),d2=new Date(an,mo+1,0);
+    const {data:sal}=await sb.from('profiles').select('id,nom').eq('role','salarie').order('nom');
+    const {data:dec}=await sb.from('declarations').select('salarie,vigne,dist_jour,dist_nuit,type').gte('jour',iso(d1)).lte('jour',iso(d2));
+    const tot={}; (dec||[]).forEach(r=>{ if(r.type==='Travaille') tot[r.salarie]=(tot[r.salarie]||0)+(+r.vigne||0)+(+r.dist_jour||0)+(+r.dist_nuit||0); });
+    let h='<table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--bord);border-radius:12px;overflow:hidden">';
+    h+='<tr><th style="text-align:left;padding:10px 12px;font-size:12px;color:var(--gris);background:#FAFAF7">Salarié</th><th style="text-align:right;padding:10px 12px;font-size:12px;color:var(--gris);background:#FAFAF7">Heures du mois</th></tr>';
+    if(sal&&sal.length){ sal.forEach(s=>{ const nom=(s.nom||'').replace(/'/g,'\u2019'); h+=`<tr onclick="ouvrirSalarie('${s.id}','${nom}')" style="cursor:pointer;border-top:1px solid var(--bord)"><td style="padding:12px;font-weight:600">${s.nom}</td><td style="padding:12px;text-align:right;color:var(--bleu2)">${r1(tot[s.id]||0)} h ›</td></tr>`; }); }
+    else h+='<tr><td colspan="2" style="padding:14px;color:var(--gris)">Aucun salarié pour l\'instant.</td></tr>';
+    h+='</table>';
+    $('dir-table').innerHTML=h;
+  }
+  function ouvrirSalarie(id,nom){dfId=id;dfNom=nom;dfMoisD=new Date(dMoisDir);$('dir-liste').classList.add('hidden');$('dir-fiche').classList.remove('hidden');renderDirFiche();}
+  function dirRetour(){$('dir-fiche').classList.add('hidden');$('dir-liste').classList.remove('hidden');}
+  function dfMois(n){dfMoisD.setMonth(dfMoisD.getMonth()+n);renderDirFiche();}
+  async function renderDirFiche(){
+    const an=dfMoisD.getFullYear(),mo=dfMoisD.getMonth();
+    $('df-nom').textContent=dfNom; $('df-lab').textContent=MOISNOM[mo]+' '+an;
+    const d1=new Date(an,mo,1),d2=new Date(an,mo+1,0);
+    const {data}=await sb.from('declarations').select('*').eq('salarie',dfId).gte('jour',iso(d1)).lte('jour',iso(d2));
+    const map={};(data||[]).forEach(r=>map[r.jour]=r);
+    let mt=0;(data||[]).forEach(r=>{ if(r.type==='Travaille') mt+=(+r.vigne||0)+(+r.dist_jour||0)+(+r.dist_nuit||0); });
+    const b=$('df-banner'); b.style.background='var(--vertbg)'; b.style.color='var(--vert)'; b.textContent='Total travaillé du mois : '+r1(mt)+' h';
+    $('df-cal').innerHTML=buildCal(map,an,mo);
   }
 
   // ---------- MOT DE PASSE ----------
