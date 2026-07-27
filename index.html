@@ -123,6 +123,7 @@
           <button onclick="histMois(1)">›</button>
         </div>
         <div class="cal" id="hist-cal"></div>
+        <div style="margin-top:8px"><button class="btn btn2" style="max-width:280px;margin:0" onclick="imprimerCalendrier(window.histMap, hMois.getFullYear(), hMois.getMonth(), 'Mon planning', PROFIL.nom)">🖨 Imprimer ce mois</button></div>
         <div class="foot">Historique en lecture seule. Vert = vigne · Orange = distillerie · Gris = absence.</div>
       </div>
     </div>
@@ -140,6 +141,7 @@
         <div class="onglets">
           <button id="ft-off" class="on" onclick="ficheTab('off')">Tableau officiel</button>
           <button id="ft-cal" onclick="ficheTab('cal')">Calendrier &amp; corrections</button>
+          <button id="ft-decl" onclick="ficheTab('decl')">Déclaration du salarié</button>
         </div>
         <div id="pan-off">
           <div class="semnav"><button onclick="offAnnee(-1)">‹</button><div class="lab" id="off-lab"></div><button onclick="offAnnee(1)">›</button></div>
@@ -153,8 +155,16 @@
           <div id="df-valid" style="margin-bottom:10px"></div>
           <div id="df-banner" class="banniere"></div>
           <div class="cal" id="df-cal"></div>
+          <div style="margin-top:8px"><button class="btn btn2" style="max-width:280px;margin:0" onclick="imprimerCalendrier(dfMap, dfMoisD.getFullYear(), dfMoisD.getMonth(), 'Calendrier officiel', dfNom)">🖨 Imprimer ce mois</button></div>
           <div class="foot">Clique un jour pour le corriger. Point rouge = jour déjà corrigé. La valeur d'origine du salarié n'est jamais effacée.</div>
           <div id="df-edit"></div>
+        </div>
+        <div id="pan-decl" class="hidden">
+          <div class="alerte" style="background:#EEF6FF;color:var(--bleu)">Saisie <b>d'origine</b> du salarié, reconstruite depuis le journal — jamais modifiée. C'est la preuve de ce qu'il a déclaré, même après tes corrections.</div>
+          <div class="semnav"><button onclick="declMois(-1)">‹</button><div class="lab" id="dm-lab"></div><button onclick="declMois(1)">›</button></div>
+          <div class="cal" id="dm-cal"></div>
+          <div style="margin-top:8px"><button class="btn btn2" style="max-width:280px;margin:0" onclick="imprimerCalendrier(window.dmMap, dfMoisD.getFullYear(), dfMoisD.getMonth(), 'Déclaration d\'origine', dfNom)">🖨 Imprimer ce mois</button></div>
+          <div class="foot">Vert = vigne · Orange = distillerie · Gris = absence. Lecture seule.</div>
         </div>
       </div>
     </div>
@@ -320,7 +330,7 @@
     const d1=new Date(an,mo,1),d2=new Date(an,mo+1,0);
     const {data}=await sb.from('declarations').select('*').eq('salarie',USER.id).gte('jour',iso(d1)).lte('jour',iso(d2));
     const map={};(data||[]).forEach(r=>map[r.jour]=r);
-    $('hist-cal').innerHTML=buildCal(map,an,mo);
+    window.histMap=map; $('hist-cal').innerHTML=buildCal(map,an,mo);
   }
 
   // ---------- ESPACE DIRECTION ----------
@@ -438,9 +448,8 @@
   let offAn=null;
   const MOIS3=['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
   function ficheTab(t){
-    $('ft-off').classList.toggle('on',t==='off'); $('ft-cal').classList.toggle('on',t==='cal');
-    $('pan-off').classList.toggle('hidden',t!=='off'); $('pan-cal').classList.toggle('hidden',t!=='cal');
-    if(t==='off') renderOfficiel(); else renderDirFiche();
+    ['off','cal','decl'].forEach(x=>{$('ft-'+x).classList.toggle('on',t===x);$('pan-'+x).classList.toggle('hidden',t!==x);});
+    if(t==='off') renderOfficiel(); else if(t==='cal') renderDirFiche(); else renderDeclOrigine();
   }
   function offAnnee(n){offAn+=n;renderOfficiel();}
   async function renderOfficiel(){
@@ -560,6 +569,57 @@
     const {error}=await sb.from('mois').upsert([row],{onConflict:'salarie,annee,mois'});
     if(error){alert('Erreur : '+error.message);return;}
     renderOfficiel();
+  }
+
+  let dmMap={};
+  function declMois(n){dfMoisD.setMonth(dfMoisD.getMonth()+n);renderDeclOrigine();}
+  async function renderDeclOrigine(){
+    const an=dfMoisD.getFullYear(), mo=dfMoisD.getMonth();
+    $('dm-lab').textContent=MOISNOM[mo]+' '+an;
+    const d1=new Date(an,mo,1), d2=new Date(an,mo+1,0);
+    const {data:dec}=await sb.from('declarations').select('*').eq('salarie',dfId).gte('jour',iso(d1)).lte('jour',iso(d2));
+    const map={}; (dec||[]).forEach(r=>map[r.jour]=r);
+    const {data:jr}=await sb.from('journal').select('jour,avant,le').eq('salarie',dfId).gte('jour',iso(d1)).lte('jour',iso(d2)).order('le',{ascending:true});
+    const firstAvant={}; (jr||[]).forEach(j=>{ if(!(j.jour in firstAvant)) firstAvant[j.jour]=j.avant; });
+    Object.keys(firstAvant).forEach(k=>{ const a=firstAvant[k]; if(a) map[k]={jour:k,type:a.type,vigne:a.vigne,dist_jour:a.dist_jour,dist_nuit:a.dist_nuit}; else delete map[k]; });
+    dmMap=map; window.dmMap=map;
+    $('dm-cal').innerHTML=buildCal(map,an,mo);
+  }
+  function imprimerCalendrier(map, an, mo, titre, nom){
+    map=map||{};
+    const logo=(document.querySelector('#vue-login .logo')||{}).src||'';
+    const dows=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+    let cells=''; dows.forEach(x=>cells+='<div class="dow">'+x+'</div>');
+    const dec=(new Date(an,mo,1).getDay()+6)%7;
+    for(let i=0;i<dec;i++)cells+='<div class="cell vide"></div>';
+    const nb=new Date(an,mo+1,0).getDate(); let tot=0;
+    for(let d=1;d<=nb;d++){
+      const r=map[an+'-'+pad(mo+1)+'-'+pad(d)];
+      if(!r){cells+='<div class="cell"><span class="n">'+d+'</span></div>';continue;}
+      let cls='abs',txt=labelType(r.type);
+      const w=(+r.vigne||0)+(+r.dist_jour||0)+(+r.dist_nuit||0);
+      if(r.type==='Travaille'){ cls=((+r.dist_jour||0)+(+r.dist_nuit||0)>0)?'d':'t'; txt=r1(w)+' h'; tot+=w; }
+      cells+='<div class="cell '+cls+'"><span class="n">'+d+'</span><span class="h">'+txt+'</span></div>';
+    }
+    const html='<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>'+titre+' '+nom+'</title><style>'
+     +'@page{size:A4 portrait;margin:12mm;}'
+     +'*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;font-family:Arial,sans-serif;box-sizing:border-box;}'
+     +'body{margin:0;color:#20201E;}'
+     +'.head{display:flex;align-items:center;gap:14px;border-bottom:3px solid #1F4E78;padding-bottom:8px;margin-bottom:14px;}'
+     +'.head img{height:44px;} .head h1{font-size:17px;margin:0;color:#1F4E78;} .head .meta{margin-left:auto;text-align:right;font-size:12px;color:#555;}'
+     +'.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}'
+     +'.dow{text-align:center;font-size:12px;color:#666;font-weight:600;padding:4px 0;}'
+     +'.cell{min-height:76px;border:1px solid #ddd;border-radius:7px;padding:5px 6px;font-size:12px;}'
+     +'.cell .n{color:#888;font-size:11px;} .cell .h{display:block;font-weight:700;font-size:14px;margin-top:6px;}'
+     +'.cell.vide{border:none;} .cell.t{background:#E9F5EC;color:#2E7D32;} .cell.d{background:#FCEEE2;color:#B4611C;} .cell.abs{background:#EDEFF2;color:#55606b;}'
+     +'.foot{margin-top:14px;font-size:11px;color:#777;}'
+     +'</style></head><body>'
+     +'<div class="head">'+(logo?'<img src="'+logo+'">':'')+'<h1>'+titre+' — '+nom+'</h1><div class="meta">'+MOISNOM[mo]+' '+an+'<br>Édité le '+new Date().toLocaleDateString('fr-FR')+'</div></div>'
+     +'<div class="grid">'+cells+'</div>'
+     +'<div class="foot">Total travaillé du mois : '+r1(tot)+' h · Vert = vigne · Orange = distillerie · Gris = absence · La Quantinerie</div>'
+     +'</body></html>';
+    const w=window.open('','_blank'); if(!w){alert('Autorise les fenêtres pop-up pour imprimer.');return;}
+    w.document.write(html); w.document.close(); w.focus(); setTimeout(()=>{w.print();},400);
   }
 
   // ---------- DÉMARRAGE ----------
