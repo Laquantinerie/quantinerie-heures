@@ -57,6 +57,14 @@
   .editp .orig{font-size:13px;color:var(--gris);margin:6px 0 8px;}
   .editp .trace{background:#FFF7E0;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:12px;color:#8A6D00;}
   .editp .trace div{margin:2px 0;}
+  .pos{color:var(--vert);font-weight:600;} .neg{color:var(--rouge);font-weight:600;}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px;}
+  .k{background:#fff;border:1px solid var(--bord);border-radius:10px;padding:10px;} .k .l{font-size:11px;color:var(--gris);} .k .v{font-size:18px;font-weight:700;}
+  .xl{font-size:12px;} .xl table{border-collapse:collapse;min-width:840px;width:100%;background:#fff;}
+  .xl th,.xl td{border:1px solid var(--bord);padding:5px 6px;text-align:center;white-space:nowrap;}
+  .xl th.g,.xl td.g{text-align:left;background:#FAFAF7;font-weight:600;position:sticky;left:0;min-width:150px;}
+  .xl .tot{background:#FBF7DF;font-weight:700;} .xl .faites td{background:#EAF3EC;} .xl .reste td{background:#EFF6E6;font-weight:600;}
+  .xl input{width:46px;border:1px solid var(--bleu2);border-radius:4px;text-align:center;padding:3px;font-size:12px;background:#FBF3D9;}
 </style>
 </head>
 <body>
@@ -127,11 +135,23 @@
       <div id="dir-fiche" class="hidden">
         <button class="btn btn2" style="width:auto;margin:0 0 12px" onclick="dirRetour()">‹ Retour à la liste</button>
         <h1 id="df-nom" style="text-align:left"></h1>
-        <div class="semnav"><button onclick="dfMois(-1)">‹</button><div class="lab" id="df-lab"></div><button onclick="dfMois(1)">›</button></div>
-        <div id="df-banner" class="banniere"></div>
-        <div class="cal" id="df-cal"></div>
-        <div class="foot">Clique un jour pour le corriger. Point rouge = jour déjà corrigé. La valeur d'origine du salarié n'est jamais effacée.</div>
-        <div id="df-edit"></div>
+        <div class="onglets">
+          <button id="ft-off" class="on" onclick="ficheTab('off')">Tableau officiel</button>
+          <button id="ft-cal" onclick="ficheTab('cal')">Calendrier &amp; corrections</button>
+        </div>
+        <div id="pan-off">
+          <div class="semnav"><button onclick="offAnnee(-1)">‹</button><div class="lab" id="off-lab"></div><button onclick="offAnnee(1)">›</button></div>
+          <div class="kpis" id="off-kpis"></div>
+          <div class="xl" style="overflow-x:auto"><table id="off-table"></table></div>
+          <div class="foot">Heures faites et nuit = calculées depuis les déclarations. « Payé au réel » et « HS payées » sont modifiables (clique la case jaune). Base annualisée : 134 h/mois (1607 h/an).</div>
+        </div>
+        <div id="pan-cal" class="hidden">
+          <div class="semnav"><button onclick="dfMois(-1)">‹</button><div class="lab" id="df-lab"></div><button onclick="dfMois(1)">›</button></div>
+          <div id="df-banner" class="banniere"></div>
+          <div class="cal" id="df-cal"></div>
+          <div class="foot">Clique un jour pour le corriger. Point rouge = jour déjà corrigé. La valeur d'origine du salarié n'est jamais effacée.</div>
+          <div id="df-edit"></div>
+        </div>
       </div>
     </div>
 
@@ -311,7 +331,7 @@
     h+='</table>';
     $('dir-table').innerHTML=h;
   }
-  function ouvrirSalarie(id,nom){dfId=id;dfNom=nom;dfMoisD=new Date(dMoisDir);$('dir-liste').classList.add('hidden');$('dir-fiche').classList.remove('hidden');renderDirFiche();}
+  function ouvrirSalarie(id,nom){dfId=id;dfNom=nom;dfMoisD=new Date(dMoisDir);offAn=(new Date()).getFullYear();$('df-nom').textContent=nom;$('dir-liste').classList.add('hidden');$('dir-fiche').classList.remove('hidden');ficheTab('off');}
   function dirRetour(){$('dir-fiche').classList.add('hidden');$('dir-liste').classList.remove('hidden');}
   function dfMois(n){dfMoisD.setMonth(dfMoisD.getMonth()+n);renderDirFiche();}
   let dfMap={}, dfJour=[];
@@ -385,6 +405,54 @@
     if(error){$('msg-mdp').textContent='Erreur : '+error.message;$('msg-mdp').className='msg err';return;}
     $('msg-mdp').textContent='Mot de passe modifié ✓';$('msg-mdp').className='msg ok';
     setTimeout(fermerMdp,1500);
+  }
+
+  // ---------- TABLEAU OFFICIEL (annualisation) ----------
+  let offAn=null;
+  const MOIS3=['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+  function ficheTab(t){
+    $('ft-off').classList.toggle('on',t==='off'); $('ft-cal').classList.toggle('on',t==='cal');
+    $('pan-off').classList.toggle('hidden',t!=='off'); $('pan-cal').classList.toggle('hidden',t!=='cal');
+    if(t==='off') renderOfficiel(); else renderDirFiche();
+  }
+  function offAnnee(n){offAn+=n;renderOfficiel();}
+  async function renderOfficiel(){
+    const an=offAn; $('off-lab').textContent='Année '+an;
+    const {data:dec}=await sb.from('declarations').select('jour,type,vigne,dist_jour,dist_nuit').eq('salarie',dfId).gte('jour',an+'-01-01').lte('jour',an+'-12-31');
+    const faites=Array(12).fill(0), nuit=Array(12).fill(0);
+    (dec||[]).forEach(r=>{ if(r.type==='Travaille'){ const m=+r.jour.slice(5,7)-1; faites[m]+=(+r.vigne||0)+(+r.dist_jour||0)+(+r.dist_nuit||0); nuit[m]+=(+r.dist_nuit||0); } });
+    const {data:mo}=await sb.from('mois').select('*').eq('salarie',dfId).eq('annee',an);
+    const reel=Array(12).fill(0), hs=Array(12).fill(0);
+    (mo||[]).forEach(r=>{ reel[r.mois-1]=+r.reel||0; hs[r.mois-1]=+r.hs_payees||0; });
+    const base=m=>reel[m]>0?reel[m]:134;
+    const diff=m=>r1(faites[m]-base(m));
+    const reste=m=>r1(diff(m)-hs[m]);
+    const somme=fn=>{let t=0;for(let m=0;m<12;m++)t+=fn(m);return r1(t);};
+    let t='<thead><tr><th class="g">&nbsp;</th>'+MOIS3.map(x=>`<th>${x}</th>`).join('')+'<th class="tot">Total</th></tr></thead><tbody>';
+    t+='<tr class="faites"><td class="g">Heures faites</td>'+faites.map(v=>`<td>${r1(v)}</td>`).join('')+`<td class="tot">${r1(faites.reduce((a,b)=>a+b,0))}</td></tr>`;
+    t+='<tr><td class="g">À faire (annualisé)</td>'+MOIS3.map(()=>'<td>134</td>').join('')+'<td class="tot">1608</td></tr>';
+    t+='<tr><td class="g">Payé au réel</td>'+reel.map((v,m)=>`<td><input type="number" step="0.5" value="${v||''}" onchange="majMois(${an},${m+1},'reel',this.value)"></td>`).join('')+'<td class="tot"></td></tr>';
+    t+='<tr><td class="g">DIFF</td>'+[...Array(12)].map((_,m)=>{const d=diff(m);return `<td class="${d>=0?'pos':'neg'}">${d>=0?'+':''}${d}</td>`;}).join('')+`<td class="tot">${somme(diff)}</td></tr>`;
+    t+='<tr><td class="g">HS payées</td>'+hs.map((v,m)=>`<td><input type="number" step="0.5" value="${v||''}" onchange="majMois(${an},${m+1},'hs_payees',this.value)"></td>`).join('')+`<td class="tot">${r1(hs.reduce((a,b)=>a+b,0))}</td></tr>`;
+    t+='<tr><td class="g">dont heures de nuit</td>'+nuit.map(v=>`<td>${v?r1(v):''}</td>`).join('')+`<td class="tot">${r1(nuit.reduce((a,b)=>a+b,0))}</td></tr>`;
+    t+='<tr class="reste"><td class="g">Reste HS à payer</td>'+[...Array(12)].map((_,m)=>{const x=reste(m);return `<td class="${x<0?'neg':''}">${x}</td>`;}).join('')+`<td class="tot">${somme(reste)}</td></tr>`;
+    t+='</tbody>'; $('off-table').innerHTML=t;
+    const now=new Date(), nowY=now.getFullYear(), nowM=now.getMonth();
+    const lastM=(an<nowY)?11:(an>nowY?-1:nowM);
+    let rc=0; for(let m=0;m<=lastM;m++) rc+=reste(m); rc=r1(rc);
+    const proj=somme(reste), tn=r1(nuit.reduce((a,b)=>a+b,0)), th=r1(hs.reduce((a,b)=>a+b,0));
+    $('off-kpis').innerHTML=`
+      <div class="k"><div class="l">Reste à régulariser (à ce jour)</div><div class="v ${rc>=0?'pos':'neg'}">${(rc>=0?'+':'')+rc} h</div></div>
+      <div class="k"><div class="l">Projection 31/12</div><div class="v ${proj>=0?'pos':'neg'}">${(proj>=0?'+':'')+proj} h</div></div>
+      <div class="k"><div class="l">HS payées (année)</div><div class="v">${th} h</div></div>
+      <div class="k"><div class="l">Heures de nuit (année)</div><div class="v">${tn} h</div></div>`;
+  }
+  async function majMois(an,mo,champ,val){
+    const v=parseFloat((''+val).replace(',','.'))||0;
+    const row={salarie:dfId,annee:an,mois:mo}; row[champ]=v;
+    const {error}=await sb.from('mois').upsert([row],{onConflict:'salarie,annee,mois'});
+    if(error){alert('Erreur : '+error.message);return;}
+    renderOfficiel();
   }
 
   // ---------- DÉMARRAGE ----------
