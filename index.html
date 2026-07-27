@@ -65,6 +65,8 @@
   .xl th.g,.xl td.g{text-align:left;background:#FAFAF7;font-weight:600;position:sticky;left:0;min-width:150px;}
   .xl .tot{background:#FBF7DF;font-weight:700;} .xl .faites td{background:#EAF3EC;} .xl .reste td{background:#EFF6E6;font-weight:600;}
   .xl input{width:46px;border:1px solid var(--bleu2);border-radius:4px;text-align:center;padding:3px;font-size:12px;background:#FBF3D9;}
+  .wrap.large{max-width:1180px;}
+  @media(min-width:900px){ .wrap.large .xl{font-size:13px;} .wrap.large .xl th,.wrap.large .xl td{padding:8px 8px;} .wrap.large .xl input{width:56px;font-size:13px;padding:5px;} .wrap.large .cal .cell{min-height:64px;} }
 </style>
 </head>
 <body>
@@ -212,8 +214,8 @@
     PROFIL=p||{nom:user.email,role:'salarie'};
     $('who').textContent=PROFIL.nom;
     vue('vue-app');
-    if(PROFIL.role==='direction'){ $('vue-direction').classList.remove('hidden'); $('vue-salarie').classList.add('hidden'); dMoisDir=new Date(); dMoisDir.setDate(1); await renderDirListe(); }
-    else{ $('vue-salarie').classList.remove('hidden'); $('vue-direction').classList.add('hidden');
+    if(PROFIL.role==='direction'){ document.querySelector('.wrap').classList.add('large'); $('vue-direction').classList.remove('hidden'); $('vue-salarie').classList.add('hidden'); dMoisDir=new Date(); dMoisDir.setDate(1); await renderDirListe(); }
+    else{ document.querySelector('.wrap').classList.remove('large'); $('vue-salarie').classList.remove('hidden'); $('vue-direction').classList.add('hidden');
       lundi=lundiDe(new Date()); await renderSemaine();
       hMois=new Date(); hMois.setDate(1); }
   }
