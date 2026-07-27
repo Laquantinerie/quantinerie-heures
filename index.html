@@ -145,6 +145,7 @@
           <div class="semnav"><button onclick="offAnnee(-1)">‹</button><div class="lab" id="off-lab"></div><button onclick="offAnnee(1)">›</button></div>
           <div class="kpis" id="off-kpis"></div>
           <div class="xl" style="overflow-x:auto"><table id="off-table"></table></div>
+          <div style="margin-top:12px"><button class="btn" style="max-width:240px;margin:0" onclick="exportOfficiel()">📥 Exporter en Excel</button></div>
           <div class="foot">« Heures faites » est calculée depuis les déclarations, mais modifiable pour <b>simuler les mois à venir</b> (projection de fin d'année). « Payé au réel », « HS payées » et « nuit » sont aussi modifiables. Base annualisée : 134 h/mois. Le « reste à ce jour » ne compte que les mois écoulés ; seule la projection 31/12 intègre tes estimations.</div>
         </div>
         <div id="pan-cal" class="hidden">
@@ -478,6 +479,33 @@
       <div class="k"><div class="l">Projection 31/12</div><div class="v ${proj>=0?'pos':'neg'}">${(proj>=0?'+':'')+proj} h</div></div>
       <div class="k"><div class="l">HS payées (année)</div><div class="v">${th} h</div></div>
       <div class="k"><div class="l">Heures de nuit (année)</div><div class="v">${tn} h</div></div>`;
+    window.offData={nom:dfNom,an,faites:[...Array(12)].map((_,m)=>faites(m)),afaire:[...Array(12)].map((_,m)=>afaire(m)),reel:reel.slice(),diff:[...Array(12)].map((_,m)=>diff(m)),hs:hs.slice(),nuit:[...Array(12)].map((_,m)=>nuit(m)),reste:[...Array(12)].map((_,m)=>reste(m)),rc,proj,tn,th};
+  }
+  function exportOfficiel(){
+    const d=window.offData; if(!d){alert('Ouvre d\'abord un tableau officiel.');return;}
+    const MH=['Janv','Fév','Mars','Avr','Mai','Juin','Juil','Août','Sept','Oct','Nov','Déc'];
+    const som=a=>r1(a.reduce((x,y)=>x+(+y||0),0));
+    const L=[];
+    L.push(['Tableau officiel — '+d.nom+' — Année '+d.an]);
+    L.push([]);
+    L.push(['Reste à régulariser (à ce jour)', d.rc+' h']);
+    L.push(['Projection 31/12', d.proj+' h']);
+    L.push(['HS payées (année)', d.th+' h']);
+    L.push(['Heures de nuit (année)', d.tn+' h']);
+    L.push([]);
+    L.push([''].concat(MH).concat(['Total']));
+    L.push(['Heures faites'].concat(d.faites).concat([som(d.faites)]));
+    L.push(['À faire (annualisé)'].concat(d.afaire).concat([som(d.afaire)]));
+    L.push(['Payé au réel'].concat(d.reel).concat(['']));
+    L.push(['DIFF'].concat(d.diff).concat([som(d.diff)]));
+    L.push(['HS payées / reçu'].concat(d.hs).concat([som(d.hs)]));
+    L.push(['dont heures de nuit'].concat(d.nuit).concat([som(d.nuit)]));
+    L.push(['Reste HS à payer'].concat(d.reste).concat([som(d.reste)]));
+    const csv=L.map(r=>r.map(c=>(''+(c===undefined||c===null?'':c)).replace('.',',')).join(';')).join('\n');
+    const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='tableau_officiel_'+d.nom.replace(/\W+/g,'_')+'_'+d.an+'.csv';
+    document.body.appendChild(a); a.click(); a.remove();
   }
   async function majMois(an,mo,champ,val){
     const v=parseFloat((''+val).replace(',','.'))||0;
