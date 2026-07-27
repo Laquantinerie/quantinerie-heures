@@ -149,6 +149,7 @@
         </div>
         <div id="pan-cal" class="hidden">
           <div class="semnav"><button onclick="dfMois(-1)">‹</button><div class="lab" id="df-lab"></div><button onclick="dfMois(1)">›</button></div>
+          <div id="df-valid" style="margin-bottom:10px"></div>
           <div id="df-banner" class="banniere"></div>
           <div class="cal" id="df-cal"></div>
           <div class="foot">Clique un jour pour le corriger. Point rouge = jour déjà corrigé. La valeur d'origine du salarié n'est jamais effacée.</div>
@@ -250,6 +251,11 @@
     $('jours').innerHTML=h;
     for(let i=0;i<7;i++) majType(i,true);
     recalc();
+    const {data:val}=await sb.from('validations').select('mois').eq('salarie',USER.id).eq('annee',lundi.getFullYear()).eq('mois',lundi.getMonth()+1);
+    const locked=val&&val.length>0;
+    document.querySelectorAll('#jours select, #jours input').forEach(e=>e.disabled=locked);
+    if(locked){ $('btn-save').style.display='none'; const b=$('banniere48'); b.style.background='#EDEDEA'; b.style.color='#55606b'; b.textContent='🔒 Mois validé par la Direction — verrouillé. Contacte la Direction pour une correction.'; }
+    else { $('btn-save').style.display=''; }
   }
   function majType(i,silent){
     const t=$('type-'+i).value;
@@ -350,6 +356,24 @@
     const b=$('df-banner'); b.style.background='var(--vertbg)'; b.style.color='var(--vert)'; b.textContent='Total travaillé du mois : '+r1(mt)+' h';
     $('df-cal').innerHTML=buildCal(dfMap,an,mo,{editable:true,corr});
     $('df-edit').innerHTML='';
+    const {data:val}=await sb.from('validations').select('le').eq('salarie',dfId).eq('annee',an).eq('mois',mo+1);
+    const est=val&&val.length>0;
+    $('df-valid').innerHTML = est
+      ? `<div class="banniere" style="background:var(--vertbg);color:var(--vert);display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0">✓ Mois validé — saisie verrouillée pour le salarié (tu peux toujours corriger, avec trace).<button class="derogb" onclick="devaliderMois()">Dévalider</button></div>`
+      : `<button class="btn" style="max-width:320px;margin:0" onclick="validerMois()">✓ Valider ce mois (verrouiller la saisie du salarié)</button>`;
+  }
+  async function validerMois(){
+    const an=dfMoisD.getFullYear(), mo=dfMoisD.getMonth()+1;
+    const {error}=await sb.from('validations').upsert([{salarie:dfId,annee:an,mois:mo,par:USER.id,le:new Date().toISOString()}],{onConflict:'salarie,annee,mois'});
+    if(error){alert('Erreur : '+error.message);return;}
+    renderDirFiche();
+  }
+  async function devaliderMois(){
+    const an=dfMoisD.getFullYear(), mo=dfMoisD.getMonth()+1;
+    if(!confirm('Dévalider ce mois ? Le salarié pourra de nouveau modifier sa saisie.')) return;
+    const {error}=await sb.from('validations').delete().eq('salarie',dfId).eq('annee',an).eq('mois',mo);
+    if(error){alert('Erreur : '+error.message);return;}
+    renderDirFiche();
   }
   function etatTxt(e){ if(!e) return 'rien'; if(e.type&&e.type!=='Travaille') return labelType(e.type); const w=(+e.vigne||0)+(+e.dist_jour||0)+(+e.dist_nuit||0); return r1(w)+' h'; }
   function dfEdit(key){
