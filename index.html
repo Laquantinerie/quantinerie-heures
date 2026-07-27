@@ -50,6 +50,13 @@
   .cell.abs{background:#EEF0F2;color:#55606b;} .cell.vide{background:transparent;border:none;}
   .foot{font-size:12px;color:var(--gris);margin-top:10px;text-align:center;}
   .modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:20px;z-index:20;}
+  .cell{position:relative;}
+  .cell .flag{position:absolute;top:3px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--rouge);}
+  .editp{background:#fff;border:1px solid var(--bord);border-radius:12px;padding:14px;margin-top:12px;}
+  .editp h4{margin:0 0 8px;font-size:15px;}
+  .editp .orig{font-size:13px;color:var(--gris);margin:6px 0 8px;}
+  .editp .trace{background:#FFF7E0;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:12px;color:#8A6D00;}
+  .editp .trace div{margin:2px 0;}
 </style>
 </head>
 <body>
@@ -123,7 +130,8 @@
         <div class="semnav"><button onclick="dfMois(-1)">‹</button><div class="lab" id="df-lab"></div><button onclick="dfMois(1)">›</button></div>
         <div id="df-banner" class="banniere"></div>
         <div class="cal" id="df-cal"></div>
-        <div class="foot">Déclarations du salarié (lecture). La correction et le tableau officiel arriveront à l'étape suivante.</div>
+        <div class="foot">Clique un jour pour le corriger. Point rouge = jour déjà corrigé. La valeur d'origine du salarié n'est jamais effacée.</div>
+        <div id="df-edit"></div>
       </div>
     </div>
 
@@ -259,18 +267,21 @@
 
   // ---------- HISTORIQUE ----------
   function histMois(n){hMois.setMonth(hMois.getMonth()+n);renderHistorique();}
-  function buildCal(map,an,mo){
+  function buildCal(map,an,mo,opts){
+    const edit=opts&&opts.editable, corr=(opts&&opts.corr)||new Set();
     let h=''; ['L','M','M','J','V','S','D'].forEach(x=>h+=`<div class="dow">${x}</div>`);
     const dec=(new Date(an,mo,1).getDay()+6)%7;
     for(let i=0;i<dec;i++)h+='<div class="cell vide"></div>';
     const nb=new Date(an,mo+1,0).getDate();
     for(let d=1;d<=nb;d++){
-      const r=map[an+'-'+pad(mo+1)+'-'+pad(d)];
-      if(!r){h+=`<div class="cell"><span class="n">${d}</span></div>`;continue;}
+      const key=an+'-'+pad(mo+1)+'-'+pad(d), r=map[key];
+      const flag=corr.has(key)?'<span class="flag"></span>':'';
+      const click=edit?` onclick="dfEdit('${key}')" style="cursor:pointer"`:'';
+      if(!r){h+=`<div class="cell"${click}><span class="n">${d}</span>${flag}</div>`;continue;}
       let cls='abs',txt=labelType(r.type);
       const w=(+r.vigne||0)+(+r.dist_jour||0)+(+r.dist_nuit||0);
       if(r.type==='Travaille'){ cls=((+r.dist_jour||0)+(+r.dist_nuit||0)>0)?'d':'t'; txt=r1(w)+' h'; }
-      h+=`<div class="cell ${cls}"><span class="n">${d}</span><span class="h">${txt}</span></div>`;
+      h+=`<div class="cell ${cls}"${click}><span class="n">${d}</span><span class="h">${txt}</span>${flag}</div>`;
     }
     return h;
   }
@@ -303,15 +314,64 @@
   function ouvrirSalarie(id,nom){dfId=id;dfNom=nom;dfMoisD=new Date(dMoisDir);$('dir-liste').classList.add('hidden');$('dir-fiche').classList.remove('hidden');renderDirFiche();}
   function dirRetour(){$('dir-fiche').classList.add('hidden');$('dir-liste').classList.remove('hidden');}
   function dfMois(n){dfMoisD.setMonth(dfMoisD.getMonth()+n);renderDirFiche();}
+  let dfMap={}, dfJour=[];
   async function renderDirFiche(){
     const an=dfMoisD.getFullYear(),mo=dfMoisD.getMonth();
     $('df-nom').textContent=dfNom; $('df-lab').textContent=MOISNOM[mo]+' '+an;
     const d1=new Date(an,mo,1),d2=new Date(an,mo+1,0);
     const {data}=await sb.from('declarations').select('*').eq('salarie',dfId).gte('jour',iso(d1)).lte('jour',iso(d2));
-    const map={};(data||[]).forEach(r=>map[r.jour]=r);
+    dfMap={};(data||[]).forEach(r=>dfMap[r.jour]=r);
+    const {data:jr}=await sb.from('journal').select('*').eq('salarie',dfId).gte('jour',iso(d1)).lte('jour',iso(d2)).order('le',{ascending:false});
+    dfJour=jr||[];
+    const corr=new Set(dfJour.map(j=>j.jour));
     let mt=0;(data||[]).forEach(r=>{ if(r.type==='Travaille') mt+=(+r.vigne||0)+(+r.dist_jour||0)+(+r.dist_nuit||0); });
     const b=$('df-banner'); b.style.background='var(--vertbg)'; b.style.color='var(--vert)'; b.textContent='Total travaillé du mois : '+r1(mt)+' h';
-    $('df-cal').innerHTML=buildCal(map,an,mo);
+    $('df-cal').innerHTML=buildCal(dfMap,an,mo,{editable:true,corr});
+    $('df-edit').innerHTML='';
+  }
+  function etatTxt(e){ if(!e) return 'rien'; if(e.type&&e.type!=='Travaille') return labelType(e.type); const w=(+e.vigne||0)+(+e.dist_jour||0)+(+e.dist_nuit||0); return r1(w)+' h'; }
+  function dfEdit(key){
+    const p=key.split('-'), da=+p[2], mo=+p[1], an=+p[0];
+    const r=dfMap[key]||{type:'Travaille',vigne:0,dist_jour:0,dist_nuit:0};
+    const opts=TYPES.map(t=>`<option value="${t[0]}"${r.type===t[0]?' selected':''}>${t[1]}</option>`).join('');
+    const traces=dfJour.filter(j=>j.jour===key);
+    let tr='';
+    if(traces.length){ tr='<div class="trace"><b>Historique des corrections</b>';
+      traces.forEach(j=>{ tr+=`<div>✎ ${new Date(j.le).toLocaleDateString('fr-FR')} : ${etatTxt(j.avant)} → <b>${etatTxt(j.apres)}</b>${j.commentaire?' — '+j.commentaire:''}</div>`; });
+      tr+='</div>'; }
+    $('df-edit').innerHTML=`<div class="editp">
+      <h4>${pad(da)}/${pad(mo)}/${an}</h4>
+      ${tr}
+      <div class="orig">Valeur actuelle : <b>${etatTxt(r)}</b></div>
+      <label>Type de journée</label>
+      <select id="c-type" onchange="cTypeChg()">${opts}</select>
+      <div class="hres" id="c-hres" style="margin-top:8px">
+        <div><label>Vigne</label><input id="c-v" type="number" min="0" step="0.5" value="${+r.vigne||''}"></div>
+        <div><label>Dist. jour</label><input id="c-dj" type="number" min="0" step="0.5" value="${+r.dist_jour||''}"></div>
+        <div><label>Dist. nuit</label><input id="c-dn" type="number" min="0" step="0.5" value="${+r.dist_nuit||''}"></div>
+      </div>
+      <label>Commentaire (facultatif)</label>
+      <input id="c-com" type="text" placeholder="ex. oubli du salarié">
+      <button class="btn" onclick="dfSave('${key}')">Enregistrer la correction</button>
+      <div id="c-msg" class="msg"></div></div>`;
+    cTypeChg();
+  }
+  function cTypeChg(){ $('c-hres').style.display=($('c-type').value==='Travaille')?'flex':'none'; }
+  async function dfSave(key){
+    const type=$('c-type').value;
+    const v=type==='Travaille'?(+$('c-v').value||0):0, dj=type==='Travaille'?(+$('c-dj').value||0):0, dn=type==='Travaille'?(+$('c-dn').value||0):0;
+    const com=$('c-com').value.trim()||null;
+    const cur=dfMap[key];
+    const avant=cur?{type:cur.type,vigne:+cur.vigne,dist_jour:+cur.dist_jour,dist_nuit:+cur.dist_nuit}:null;
+    const apres={type,vigne:v,dist_jour:dj,dist_nuit:dn};
+    $('c-msg').textContent='Enregistrement…';$('c-msg').className='msg';
+    const up=await sb.from('declarations').upsert([{salarie:dfId,jour:key,type,vigne:v,dist_jour:dj,dist_nuit:dn,maj_le:new Date().toISOString()}],{onConflict:'salarie,jour'});
+    if(up.error){$('c-msg').textContent='Erreur : '+up.error.message;$('c-msg').className='msg err';return;}
+    const jr=await sb.from('journal').insert([{salarie:dfId,jour:key,avant,apres,par:USER.id,commentaire:com}]);
+    if(jr.error){$('c-msg').textContent='Erreur journal : '+jr.error.message;$('c-msg').className='msg err';return;}
+    await renderDirFiche();
+    dfEdit(key);
+    $('c-msg').textContent='Correction enregistrée ✓';$('c-msg').className='msg ok';
   }
 
   // ---------- MOT DE PASSE ----------
