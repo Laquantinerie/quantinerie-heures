@@ -454,7 +454,7 @@
     const valSet=new Set((vv||[]).map(v=>v.mois));
     // Mois "au réel" (reel>0) : heures faites = payé au réel + HS payées (comme l'Excel). Sinon = calculé depuis les déclarations.
     const faites=m=>(!valSet.has(m+1)&&fo[m]>0)?fo[m]:(reel[m]>0?r1(reel[m]+hs[m]):r1(cFaites[m]));
-    const nuit=m=>(!valSet.has(m+1)&&nm[m]>0)?nm[m]:r1(cNuit[m]);
+    const nuit=m=>cNuit[m]>0?r1(cNuit[m]):nm[m];
     const afaire=m=>reel[m]>0?0:134;
     const base=m=>reel[m]>0?reel[m]:134;
     const diff=m=>r1(faites(m)-base(m));
