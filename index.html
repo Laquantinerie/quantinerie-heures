@@ -145,7 +145,7 @@
           <div class="semnav"><button onclick="offAnnee(-1)">‹</button><div class="lab" id="off-lab"></div><button onclick="offAnnee(1)">›</button></div>
           <div class="kpis" id="off-kpis"></div>
           <div class="xl" style="overflow-x:auto"><table id="off-table"></table></div>
-          <div style="margin-top:12px"><button class="btn" style="max-width:240px;margin:0" onclick="exportOfficiel()">📥 Exporter en Excel</button></div>
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" style="max-width:240px;margin:0" onclick="exportOfficiel()">📥 Exporter en Excel</button><button class="btn btn2" style="max-width:300px;margin:0" onclick="imprimerOfficiel()">🖨 Imprimer / PDF (A4 paysage)</button></div>
           <div class="foot">« Heures faites » est calculée depuis les déclarations, mais modifiable pour <b>simuler les mois à venir</b> (projection de fin d'année). « Payé au réel », « HS payées » et « nuit » sont aussi modifiables. Base annualisée : 134 h/mois. Le « reste à ce jour » ne compte que les mois écoulés ; seule la projection 31/12 intègre tes estimations.</div>
         </div>
         <div id="pan-cal" class="hidden">
@@ -506,6 +506,53 @@
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
     a.download='tableau_officiel_'+d.nom.replace(/\W+/g,'_')+'_'+d.an+'.csv';
     document.body.appendChild(a); a.click(); a.remove();
+  }
+  function imprimerOfficiel(){
+    const d=window.offData; if(!d){alert('Ouvre d\'abord un tableau officiel.');return;}
+    const MH=['Janv','Fév','Mars','Avr','Mai','Juin','Juil','Août','Sept','Oct','Nov','Déc'];
+    const som=a=>r1(a.reduce((x,y)=>x+(+y||0),0));
+    const logo=(document.querySelector('#vue-login .logo')||{}).src||'';
+    const fmt=(v,bz)=>{ if(v===''||v===undefined||v===null) return ''; if(bz&&(+v===0)) return ''; return (''+v).replace('.',','); };
+    const rowN=(lab,arr,tot,cls,sign,bz)=>{
+      let r='<tr class="'+(cls||'')+'"><th>'+lab+'</th>';
+      arr.forEach(v=>{ let c=''; let val=fmt(v,bz); if(sign&&v!==''&&v!==undefined){ c=(+v>=0?'pos':'neg'); if(+v>=0) val='+'+val; } r+='<td class="'+c+'">'+val+'</td>'; });
+      r+='<td class="tot">'+(tot===''?'':fmt(tot))+'</td></tr>'; return r;
+    };
+    let thead='<thead><tr><th></th>'+MH.map(m=>'<th>'+m+'</th>').join('')+'<th class="tot">Total</th></tr></thead>';
+    let tb='<tbody>';
+    tb+=rowN('Heures faites',d.faites,som(d.faites),'faites',false,false);
+    tb+=rowN('À faire (annualisé)',d.afaire,som(d.afaire),'',false,false);
+    tb+=rowN('Payé au réel',d.reel,'','',false,true);
+    tb+=rowN('DIFF',d.diff,som(d.diff),'',true,false);
+    tb+=rowN('HS payées / reçu',d.hs,som(d.hs),'',false,true);
+    tb+=rowN('dont heures de nuit',d.nuit,som(d.nuit),'',false,true);
+    tb+=rowN('Reste HS à payer',d.reste,som(d.reste),'reste',false,false);
+    tb+='</tbody>';
+    const html='<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Tableau officiel '+d.nom+'</title><style>'
+      +'@page{size:A4 landscape;margin:10mm;}'
+      +'*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;font-family:Arial,Helvetica,sans-serif;box-sizing:border-box;}'
+      +'body{margin:0;color:#20201E;}'
+      +'.head{display:flex;align-items:center;gap:14px;border-bottom:3px solid #1F4E78;padding-bottom:8px;margin-bottom:12px;}'
+      +'.head img{height:46px;} .head h1{font-size:19px;margin:0;color:#1F4E78;} .head .meta{margin-left:auto;text-align:right;font-size:12px;color:#555;}'
+      +'.kpis{display:flex;gap:10px;margin-bottom:14px;} .k{flex:1;border:1px solid #E4E4DF;border-radius:8px;padding:8px 12px;} .k .l{font-size:10px;color:#666;} .k .v{font-size:17px;font-weight:700;color:#1F4E78;}'
+      +'table{width:100%;border-collapse:collapse;font-size:12.5px;} th,td{border:1px solid #cfcfcf;padding:7px 5px;text-align:center;}'
+      +'th:first-child,td:first-child{text-align:left;background:#FAFAF7;font-weight:600;white-space:nowrap;}'
+      +'thead th{background:#1F4E78;color:#fff;font-weight:600;}'
+      +'tr.faites td{background:#EAF3EC;} tr.reste td{background:#EFF6E6;font-weight:700;} .tot{background:#FBF7DF;font-weight:700;}'
+      +'.pos{color:#2E7D32;font-weight:600;} .neg{color:#C0392B;font-weight:600;}'
+      +'.foot{margin-top:12px;font-size:10px;color:#888;}'
+      +'</style></head><body>'
+      +'<div class="head">'+(logo?'<img src="'+logo+'">':'')+'<h1>Tableau officiel — '+d.nom+'</h1><div class="meta">Année '+d.an+'<br>Édité le '+new Date().toLocaleDateString('fr-FR')+'</div></div>'
+      +'<div class="kpis">'
+      +'<div class="k"><div class="l">Reste à régulariser (à ce jour)</div><div class="v">'+(d.rc>=0?'+':'')+d.rc+' h</div></div>'
+      +'<div class="k"><div class="l">Projection 31/12</div><div class="v">'+(d.proj>=0?'+':'')+d.proj+' h</div></div>'
+      +'<div class="k"><div class="l">HS payées (année)</div><div class="v">'+d.th+' h</div></div>'
+      +'<div class="k"><div class="l">Heures de nuit (année)</div><div class="v">'+d.tn+' h</div></div>'
+      +'</div><table>'+thead+tb+'</table>'
+      +'<div class="foot">La Quantinerie · suivi des heures · base annualisée 134 h/mois (1607 h/an) · les heures de nuit sont incluses dans les heures faites.</div>'
+      +'</body></html>';
+    const w=window.open('','_blank'); if(!w){alert('Autorise les fenêtres pop-up pour imprimer.');return;}
+    w.document.write(html); w.document.close(); w.focus(); setTimeout(()=>{w.print();},400);
   }
   async function majMois(an,mo,champ,val){
     const v=parseFloat((''+val).replace(',','.'))||0;
