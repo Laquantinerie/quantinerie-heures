@@ -101,6 +101,7 @@
       <div class="onglets">
         <button id="tab-sem" class="on" onclick="ongletSalarie('sem')">Ma semaine</button>
         <button id="tab-hist" onclick="ongletSalarie('hist')">Historique</button>
+        <button id="tab-cpt" onclick="ongletSalarie('cpt')">Mes compteurs</button>
       </div>
 
       <div id="pan-sem">
@@ -126,6 +127,8 @@
         <div style="margin-top:8px"><button class="btn btn2" style="max-width:280px;margin:0" onclick="imprimerCalendrier(window.histMap, hMois.getFullYear(), hMois.getMonth(), 'Mon planning', PROFIL.nom)">🖨 Imprimer ce mois</button></div>
         <div class="foot">Historique en lecture seule. Vert = vigne · Orange = distillerie · Gris = absence.</div>
       </div>
+
+      <div id="pan-cpt" class="hidden"><div id="cpt"></div></div>
     </div>
 
     <!-- DIRECTION -->
@@ -234,9 +237,30 @@
 
   // ---------- MA SEMAINE ----------
   function ongletSalarie(o){
-    $('tab-sem').classList.toggle('on',o==='sem'); $('tab-hist').classList.toggle('on',o==='hist');
-    $('pan-sem').classList.toggle('hidden',o!=='sem'); $('pan-hist').classList.toggle('hidden',o!=='hist');
-    if(o==='hist') renderHistorique();
+    ['sem','hist','cpt'].forEach(x=>{$('tab-'+x).classList.toggle('on',o===x);$('pan-'+x).classList.toggle('hidden',o!==x);});
+    if(o==='hist') renderHistorique(); if(o==='cpt') renderCompteurs();
+  }
+  async function renderCompteurs(){
+    const an=(new Date()).getFullYear(), moNow=(new Date()).getMonth();
+    const {data:dec}=await sb.from('declarations').select('jour,type,vigne,dist_jour,dist_nuit').eq('salarie',USER.id).gte('jour',an+'-01-01').lte('jour',an+'-12-31');
+    let hA=0,hM=0,nA=0,cg=0,rh=0,rd=0,ab=0;
+    (dec||[]).forEach(r=>{ const m=+r.jour.slice(5,7)-1;
+      if(r.type==='Travaille'){ const w=(+r.vigne||0)+(+r.dist_jour||0)+(+r.dist_nuit||0); hA+=w; if(m===moNow)hM+=w; nA+=(+r.dist_nuit||0); }
+      else if(r.type==='Conge') cg++; else if(r.type==='Recup HS') rh++; else if(r.type==='Recup distillation') rd++; else if(r.type==='Autre absence') ab++;
+    });
+    const {data:mo}=await sb.from('mois').select('hs_payees').eq('salarie',USER.id).eq('annee',an);
+    let hs=0; (mo||[]).forEach(r=>hs+=(+r.hs_payees||0));
+    const card=(l,v)=>`<div class="k"><div class="l">${l}</div><div class="v">${v}</div></div>`;
+    $('cpt').innerHTML='<div class="kpis">'
+      +card('Heures ce mois-ci', r1(hM)+' h')
+      +card('Heures cumulées '+an, r1(hA)+' h')
+      +card('dont heures de nuit', r1(nA)+' h')
+      +card('Heures sup payées '+an, r1(hs)+' h')
+      +card('Congés pris', cg+' j')
+      +card('Récup HS prise', rh+' j')
+      +card('Récup distillation', rd+' / 3 j')
+      +card('Autres absences', ab+' j')
+      +'</div><p class="foot">Compteurs de l\'année en cours. Le solde de congés restants et la régularisation annuelle sont suivis par la Direction.</p>';
   }
   function semaine(n){lundi=addJ(lundi,7*n);renderSemaine();}
 
