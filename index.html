@@ -267,9 +267,11 @@
       if(r.type==='Travaille'){ const w=(+r.vigne||0)+(+r.dist_jour||0)+(+r.dist_nuit||0); hA+=w; if(m===moNow)hM+=w; cN[m]+=(+r.dist_nuit||0); }
       else if(r.type==='Conge') cg++; else if(r.type==='Recup HS') rh++; else if(r.type==='Recup distillation') rd++; else if(r.type==='Autre absence') ab++;
     });
+    const rval=await sb.from('validations').select('mois').eq('salarie',USER.id).eq('annee',an);
+    const valSet=new Set((rval.data||[]).map(v=>v.mois));
     let hs=0; const nmA=Array(12).fill(0);
     const rmo=await sb.from('mois').select('hs_payees,nuit,mois').eq('salarie',USER.id).eq('annee',an);
-    (rmo.data||[]).forEach(r=>{ hs+=(+r.hs_payees||0); nmA[r.mois-1]=+r.nuit||0; });
+    (rmo.data||[]).forEach(r=>{ if(valSet.has(r.mois)) hs+=(+r.hs_payees||0); nmA[r.mois-1]=+r.nuit||0; });
     let nA=0; for(let m=0;m<12;m++) nA += cN[m]>0?cN[m]:nmA[m]; nA=r1(nA);
     const rp=await sb.from('profiles').select('conges_droit').eq('id',USER.id).single();
     const droit=rp.data?(+rp.data.conges_droit||0):0;
@@ -289,7 +291,7 @@
       +card('Heures ce mois-ci', r1(hM)+' h')
       +card('Heures cumulées '+an, r1(hA)+' h')
       +card('dont heures de nuit', r1(nA)+' h')
-      +card('Heures sup payées '+an, r1(hs)+' h')
+      +card('HS payées (mois validés)', r1(hs)+' h')
       +'</div>'
       +titre('Congés '+an)
       +'<div class="kpis">'+card('Congés pris', congesOuvr+' j ouvrables')+card('Solde restant', solde+' / '+droit+' j')+'</div>'
