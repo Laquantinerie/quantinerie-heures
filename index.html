@@ -138,7 +138,7 @@
       <div id="dir-liste">
         <div class="semnav"><button onclick="dirMois(-1)">‹</button><div class="lab" id="dir-lab"></div><button onclick="dirMois(1)">›</button></div>
         <div id="dir-table"></div>
-        <div style="margin-top:10px"><button class="btn" style="max-width:320px;margin:0" onclick="ouvrirSynthese()">📋 Synthèse de paie de ce mois</button></div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" style="max-width:260px;margin:0" onclick="ouvrirSynthese()">📋 Synthèse de paie</button><button class="btn btn2" style="max-width:280px;margin:0" onclick="ouvrirRefac()">🏭 Refacturation distillerie</button></div>
         <div class="foot">Heures du mois calculées à partir des déclarations des salariés. Clique un salarié pour voir son détail.</div>
       </div>
       <div id="dir-fiche" class="hidden">
@@ -183,6 +183,13 @@
         <div class="xl" style="overflow-x:auto"><table id="syn-table"></table></div>
         <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" style="max-width:240px;margin:0" onclick="exportSynthese()">📥 Exporter en Excel</button><button class="btn btn2" style="max-width:300px;margin:0" onclick="imprimerSynthese()">🖨 Imprimer / PDF (A4 paysage)</button></div>
         <div class="foot">Éléments à transmettre pour la paie du mois — heures travaillées, nuit, HS payées, jours de congé / récup / absence. Calculés depuis les déclarations.</div>
+      </div>
+      <div id="dir-refac" class="hidden">
+        <button class="btn btn2" style="width:auto;margin:0 0 12px" onclick="retourRefac()">‹ Retour au tableau de bord</button>
+        <div class="semnav"><button onclick="refMois(-1)">‹</button><div class="lab" id="ref-lab"></div><button onclick="refMois(1)">›</button></div>
+        <div class="xl" style="overflow-x:auto"><table id="ref-table"></table></div>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" style="max-width:240px;margin:0" onclick="exportRefac()">📥 Exporter en Excel</button><button class="btn btn2" style="max-width:300px;margin:0" onclick="imprimerRefac()">🖨 Imprimer / PDF (A4 paysage)</button></div>
+        <div class="foot">Refacturation Vignobles → Distillerie au <b>coût réel, sans marge</b> : coût chargé du salarié × (heures distillerie ÷ heures totales). Le <b>coût chargé</b> (brut + charges patronales) se saisit ici, par mois. 🔴 Coefficient de charges et clé des primes à valider avec CERFRANCE.</div>
       </div>
     </div>
 
@@ -856,6 +863,53 @@
   }
   async function majTaux(champ,val){ const o={}; o[champ]=parseFloat((''+val).replace(',','.'))||0; const {error}=await sb.from('profiles').update(o).eq('id',dfId); if(error)alert('Erreur : '+error.message); }
   async function majDroit(val){ const v=parseFloat((''+val).replace(',','.'))||0; const {error}=await sb.from('profiles').update({conges_droit:v}).eq('id',dfId); if(error){alert('Erreur : '+error.message);return;} renderOfficiel(); }
+
+  let refMoisD=null, refData=null;
+  function ouvrirRefac(){ refMoisD=new Date(dMoisDir); $('dir-liste').classList.add('hidden'); $('dir-refac').classList.remove('hidden'); renderRefac(); }
+  function retourRefac(){ $('dir-refac').classList.add('hidden'); $('dir-liste').classList.remove('hidden'); }
+  function refMois(n){ refMoisD.setMonth(refMoisD.getMonth()+n); renderRefac(); }
+  async function renderRefac(){
+    const an=refMoisD.getFullYear(), mo=refMoisD.getMonth();
+    $('ref-lab').textContent='Refacturation — '+MOISNOM[mo]+' '+an;
+    const d1=new Date(an,mo,1), d2=new Date(an,mo+1,0);
+    const {data:sal}=await sb.from('profiles').select('id,nom').eq('role','salarie').order('nom');
+    const {data:dec}=await sb.from('declarations').select('salarie,type,vigne,dist_jour,dist_nuit').gte('jour',iso(d1)).lte('jour',iso(d2));
+    const {data:mm}=await sb.from('mois').select('salarie,cout_charge').eq('annee',an).eq('mois',mo+1);
+    const by={}; (sal||[]).forEach(s=>by[s.id]={id:s.id,nom:s.nom,tot:0,dist:0,nuit:0,cout:0});
+    (dec||[]).forEach(r=>{ const o=by[r.salarie]; if(!o||r.type!=='Travaille')return; const dj=+r.dist_jour||0,dn=+r.dist_nuit||0; o.tot+=(+r.vigne||0)+dj+dn; o.dist+=dj+dn; o.nuit+=dn; });
+    (mm||[]).forEach(x=>{ if(by[x.salarie]) by[x.salarie].cout=+x.cout_charge||0; });
+    const rows=Object.values(by).filter(o=>o.dist>0); refData={an,mo,rows};
+    const ist='width:92px;padding:5px;border:1px solid var(--bleu2);border-radius:5px;text-align:center;background:var(--jaune)';
+    let t='<thead><tr><th class="g">Salarié</th><th>Heures totales</th><th>Heures distillerie</th><th>dont nuit</th><th>Coût chargé (€)</th><th>Part dist.</th><th>À refacturer</th></tr></thead><tbody>';
+    rows.forEach(o=>{ const part=o.tot>0?o.dist/o.tot:0; const montant=o.cout*part;
+      t+='<tr><td class="g">'+o.nom+'</td><td>'+r1(o.tot)+' h</td><td>'+r1(o.dist)+' h</td><td>'+(o.nuit?r1(o.nuit)+' h':'')+'</td><td><input type="number" step="0.01" style="'+ist+'" value="'+(o.cout||'')+'" onchange="majCoutCharge('+an+','+(mo+1)+',\''+o.id+'\',this.value)"></td><td>'+Math.round(part*100)+' %</td><td style="font-weight:700">'+(montant?montant.toFixed(2)+' €':'')+'</td></tr>';
+    });
+    if(!rows.length) t+='<tr><td colspan="7" style="padding:12px;color:var(--gris)">Aucune heure de distillation ce mois.</td></tr>';
+    t+='</tbody>'; $('ref-table').innerHTML=t;
+  }
+  async function majCoutCharge(an,mo,id,val){ const v=parseFloat((''+val).replace(',','.'))||0; const {error}=await sb.from('mois').upsert([{salarie:id,annee:an,mois:mo,cout_charge:v}],{onConflict:'salarie,annee,mois'}); if(error){alert('Erreur : '+error.message);return;} renderRefac(); }
+  function exportRefac(){ if(!refData)return;
+    const H=['Salarié','Heures totales','Heures distillerie','dont nuit','Coût chargé','Part distillerie %','À refacturer'];
+    const L=[['Refacturation distillerie — '+MOISNOM[refData.mo]+' '+refData.an],[],H];
+    refData.rows.forEach(o=>{const part=o.tot>0?o.dist/o.tot:0;L.push([o.nom,r1(o.tot),r1(o.dist),r1(o.nuit),o.cout,Math.round(part*100),r1(o.cout*part)]);});
+    const csv=L.map(r=>r.map(c=>(''+(c==null?'':c)).replace('.',',')).join(';')).join('\n');
+    const b=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='refacturation_'+MOISNOM[refData.mo]+'_'+refData.an+'.csv'; document.body.appendChild(a); a.click(); a.remove();
+  }
+  function imprimerRefac(){ if(!refData)return;
+    const logo=(document.querySelector('#vue-login .logo')||{}).src||'';
+    const H=['Salarié','Heures totales','Heures dist.','dont nuit','Coût chargé','Part dist.','À refacturer'];
+    let rows=''; refData.rows.forEach(o=>{const part=o.tot>0?o.dist/o.tot:0;const m=o.cout*part;rows+='<tr><td class="g">'+o.nom+'</td><td>'+r1(o.tot)+' h</td><td>'+r1(o.dist)+' h</td><td>'+(o.nuit?r1(o.nuit)+' h':'')+'</td><td>'+(o.cout?o.cout.toFixed(2)+' €':'')+'</td><td>'+Math.round(part*100)+' %</td><td style="font-weight:700">'+(m?m.toFixed(2)+' €':'')+'</td></tr>';});
+    const html='<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Refacturation '+MOISNOM[refData.mo]+' '+refData.an+'</title><style>'
+      +'@page{size:A4 landscape;margin:10mm;} *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;font-family:Arial,sans-serif;box-sizing:border-box;} body{margin:0;color:#20201E;}'
+      +'.head{display:flex;align-items:center;gap:14px;border-bottom:3px solid #1F4E78;padding-bottom:8px;margin-bottom:14px;} .head img{height:44px;} .head h1{font-size:18px;margin:0;color:#1F4E78;} .head .meta{margin-left:auto;text-align:right;font-size:12px;color:#555;}'
+      +'table{width:100%;border-collapse:collapse;font-size:12.5px;} th,td{border:1px solid #ccc;padding:7px 6px;text-align:center;} th:first-child,td:first-child{text-align:left;font-weight:600;background:#FAFAF7;} thead th{background:#1F4E78;color:#fff;} .foot{margin-top:12px;font-size:10px;color:#888;}'
+      +'</style></head><body><div class="head">'+(logo?'<img src="'+logo+'">':'')+'<h1>Refacturation distillerie</h1><div class="meta">'+MOISNOM[refData.mo]+' '+refData.an+'<br>Édité le '+new Date().toLocaleDateString('fr-FR')+'</div></div>'
+      +'<table><thead><tr>'+H.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table>'
+      +'<div class="foot">Vignobles Roy → Distillerie Roy · coût réel sans marge · coût chargé × (heures distillerie ÷ heures totales) · La Quantinerie</div></body></html>';
+    const w=window.open('','_blank'); if(!w){alert('Autorise les fenêtres pop-up.');return;}
+    w.document.write(html); w.document.close(); w.focus(); setTimeout(()=>w.print(),400);
+  }
 
   // ---------- DÉMARRAGE ----------
   (async()=>{const {data:{session}}=await sb.auth.getSession();if(session)await demarrer();else vue('vue-login');})();
