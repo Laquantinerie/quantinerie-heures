@@ -876,12 +876,12 @@
     const {data:dec}=await sb.from('declarations').select('salarie,type,vigne,dist_jour,dist_nuit').gte('jour',iso(d1)).lte('jour',iso(d2));
     const by={}; (sal||[]).forEach(s=>by[s.id]={nom:s.nom,vig:0,dj:0,dn:0});
     (dec||[]).forEach(r=>{ const o=by[r.salarie]; if(!o||r.type!=='Travaille')return; o.vig+=(+r.vigne||0); o.dj+=(+r.dist_jour||0); o.dn+=(+r.dist_nuit||0); });
-    const rows=Object.values(by).filter(o=>(o.dj+o.dn)>0); refData={an,mo,rows};
+    const rows=Object.values(by); refData={an,mo,rows};
     let t='<thead><tr><th class="g">Salarié</th><th>Heures vigne</th><th>Distillerie jour</th><th>Distillerie nuit</th><th>Total distillerie</th><th>Total travaillé</th></tr></thead><tbody>';
     rows.forEach(o=>{ const td=r1(o.dj+o.dn), tt=r1(o.vig+o.dj+o.dn);
       t+='<tr><td class="g">'+o.nom+'</td><td>'+r1(o.vig)+' h</td><td>'+r1(o.dj)+' h</td><td>'+(o.dn?r1(o.dn)+' h':'')+'</td><td style="font-weight:700;background:#FBF7DF">'+td+' h</td><td>'+tt+' h</td></tr>';
     });
-    if(!rows.length) t+='<tr><td colspan="6" style="padding:12px;color:var(--gris)">Aucune heure de distillation ce mois.</td></tr>';
+    if(!rows.length) t+='<tr><td colspan="6" style="padding:12px;color:var(--gris)">Aucun salarié / aucune donnée ce mois.</td></tr>';
     t+='</tbody>'; $('ref-table').innerHTML=t;
   }
   function exportRefac(){ if(!refData)return;
