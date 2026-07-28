@@ -240,6 +240,11 @@
     ['sem','hist','cpt'].forEach(x=>{$('tab-'+x).classList.toggle('on',o===x);$('pan-'+x).classList.toggle('hidden',o!==x);});
     if(o==='hist') renderHistorique(); if(o==='cpt') renderCompteurs();
   }
+  const FERIES_={2026:['01-01','04-06','05-01','05-08','05-14','05-25','07-14','08-15','11-01','11-11','12-25'],
+                2027:['01-01','03-29','05-01','05-08','05-13','05-24','07-14','08-15','11-01','11-11','12-25']};
+  function estFerie_(d){const mm=pad(d.getMonth()+1)+'-'+pad(d.getDate());return (FERIES_[d.getFullYear()]||[]).includes(mm);}
+  // décompte d'une période de congé en jours ouvrables (lun-sam, hors fériés) + samedi de fin si vendredi
+  function ouvrPeriode(a,b){let c=0,d=new Date(a);while(d<=b){if(d.getDay()!==0&&!estFerie_(d))c++;d.setDate(d.getDate()+1);}if(b.getDay()===5){const s=new Date(b);s.setDate(s.getDate()+1);if(!estFerie_(s))c++;}return c;}
   async function renderCompteurs(){
     const an=(new Date()).getFullYear(), moNow=(new Date()).getMonth();
     const {data:dec}=await sb.from('declarations').select('jour,type,vigne,dist_jour,dist_nuit').eq('salarie',USER.id).gte('jour',an+'-01-01').lte('jour',an+'-12-31');
@@ -253,14 +258,16 @@
     (rmo.data||[]).forEach(r=>{ hs+=(+r.hs_payees||0); nmA[r.mois-1]=+r.nuit||0; });
     let nA=0; for(let m=0;m<12;m++) nA += cN[m]>0?cN[m]:nmA[m]; nA=r1(nA);
     const rp=await sb.from('profiles').select('conges_droit').eq('id',USER.id).single();
-    const droit=rp.data?(+rp.data.conges_droit||0):0, solde=r1(droit-cg);
+    const droit=rp.data?(+rp.data.conges_droit||0):0;
     const rrd=await sb.from('recup_dist').select('jours').eq('salarie',USER.id).eq('annee',an).maybeSingle();
     const droitRD=rrd.data?(+rrd.data.jours||0):0;
     const per=arr=>{const o=[];let a=null,p=null,n=0;arr.forEach(s=>{const d=new Date(s);if(a&&(d-p)/864e5<=3){p=d;n++;}else{if(a)o.push([a,p,n]);a=d;p=d;n=1;}});if(a)o.push([a,p,n]);return o;};
     const fmtd=d=>pad(d.getDate())+'/'+pad(d.getMonth()+1);
-    const listP=arr=>{const P=per(arr);return P.length?('<ul style="margin:6px 0 0;padding-left:18px;font-size:13px">'+P.map(x=>'<li>'+fmtd(x[0])+' → '+fmtd(x[1])+' <b>('+x[2]+' j)</b></li>').join('')+'</ul>'):'<div style="font-size:13px;color:var(--gris)">Aucun pour l\'instant.</div>';};
+    const listP=(arr,ouvr)=>{const P=per(arr);return P.length?('<ul style="margin:6px 0 0;padding-left:18px;font-size:13px">'+P.map(x=>{const n=ouvr?ouvrPeriode(x[0],x[1]):x[2];return '<li>'+fmtd(x[0])+' → '+fmtd(x[1])+' <b>('+n+' j'+(ouvr?' ouvrables':'')+')</b></li>';}).join('')+'</ul>'):'<div style="font-size:13px;color:var(--gris)">Aucun pour l\'instant.</div>';};
     const congeArr=(dec||[]).filter(r=>r.type==='Conge').map(r=>r.jour).sort();
     const recupArr=(dec||[]).filter(r=>r.type==='Recup HS'||r.type==='Recup distillation').map(r=>r.jour).sort();
+    const congesOuvr=per(congeArr).reduce((s,x)=>s+ouvrPeriode(x[0],x[1]),0);
+    const solde=r1(droit-congesOuvr);
     const card=(l,v)=>`<div class="k"><div class="l">${l}</div><div class="v">${v}</div></div>`;
     const titre=t=>'<div style="font-size:14px;font-weight:600;margin:16px 0 8px">'+t+'</div>';
     const box=c=>'<div style="background:#fff;border:1px solid var(--bord);border-radius:10px;padding:10px 14px">'+c+'</div>';
@@ -271,11 +278,11 @@
       +card('Heures sup payées '+an, r1(hs)+' h')
       +'</div>'
       +titre('Congés '+an)
-      +'<div class="kpis">'+card('Congés pris', cg+' j')+card('Solde restant', solde+' / '+droit+' j')+'</div>'
-      +box('Périodes déjà prises :'+listP(congeArr))
+      +'<div class="kpis">'+card('Congés pris', congesOuvr+' j ouvrables')+card('Solde restant', solde+' / '+droit+' j')+'</div>'
+      +box('Périodes déjà prises :'+listP(congeArr,true))
       +titre('Récup & absences')
       +'<div class="kpis">'+card('Récup HS prise', rh+' j')+((droitRD>0||rd>0)?card('Récup distillation', rd+' / '+droitRD+' j'):'')+card('Autres absences', ab+' j')+'</div>'
-      +(recupArr.length?box('Récup déjà prises :'+listP(recupArr)):'')
+      +(recupArr.length?box('Récup déjà prises :'+listP(recupArr,false)):'')
       +'<p class="foot">Congés déjà effectués (dates ci-dessus) et solde indicatif (droit annuel − jours pris). Le décompte précis est validé par la Direction / la paie.</p>';
   }
   function semaine(n){lundi=addJ(lundi,7*n);renderSemaine();}
