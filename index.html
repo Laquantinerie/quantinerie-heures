@@ -154,6 +154,7 @@
           <div class="kpis" id="off-kpis"></div>
           <div class="xl" style="overflow-x:auto"><table id="off-table"></table></div>
           <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" style="max-width:240px;margin:0" onclick="exportOfficiel()">📥 Exporter en Excel</button><button class="btn btn2" style="max-width:300px;margin:0" onclick="imprimerOfficiel()">🖨 Imprimer / PDF (A4 paysage)</button></div>
+          <div id="off-panels" style="margin-top:16px"></div>
           <div class="foot">« Heures faites » est calculée depuis les déclarations, mais modifiable pour <b>simuler les mois à venir</b> (projection de fin d'année). « Payé au réel », « HS payées » et « nuit » sont aussi modifiables. Base annualisée : 134 h/mois (1607 h/an, congés déjà déduits). « Heures faites » = <b>heures réellement travaillées</b> ; les absences (congé, férié, récup) ne sont pas comptées comme du travail. Un mois de congés affiche donc un déficit normal, qui s'équilibre sur l'année. <b>Exception</b> : une <b>absence payée pour événement familial</b> compte comme 7 h (elle n'est pas incluse dans la base 134 h). Le « reste à ce jour » ne compte que les mois écoulés ; la projection 31/12 intègre tes estimations. 🔴 Le traitement exact des absences dans l'annualisation est à confirmer avec ta paie.</div>
         </div>
         <div id="pan-cal" class="hidden">
@@ -218,6 +219,7 @@
   const $=id=>document.getElementById(id);
 
   const TYPES=[['Travaille','Travaillé'],['Conge','Congé'],['Recup HS','Récup HS'],['Recup distillation','Récup distillation'],['Ferie','Férié'],['Autre absence payee','Autre absence payée'],['Autre absence','Autre absence']];
+  const MOTIFS=['—','Décès','Mariage / PACS','Naissance','Congé paternité','Maladie','Sans solde','Autre'];
   const JOURS=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
   const MOISNOM=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
   let USER=null, PROFIL=null, lundi=null, hMois=null;
@@ -510,6 +512,7 @@
       <div class="orig">Valeur actuelle : <b>${etatTxt(r)}</b></div>
       <label>Type de journée</label>
       <select id="c-type" onchange="cTypeChg()">${opts}</select>
+      <div id="c-motif-wrap" style="margin-top:8px"><label>Motif de l'absence</label><select id="c-motif">${MOTIFS.map(m=>`<option${r.motif===m?' selected':''}>${m}</option>`).join('')}</select></div>
       <div class="hres" id="c-hres" style="margin-top:8px">
         <div><label>Vigne</label><input id="c-v" type="number" min="0" step="0.5" value="${+r.vigne||''}"></div>
         <div><label>Dist. jour</label><input id="c-dj" type="number" min="0" step="0.5" value="${+r.dist_jour||''}"></div>
@@ -521,16 +524,17 @@
       <div id="c-msg" class="msg"></div></div>`;
     cTypeChg();
   }
-  function cTypeChg(){ $('c-hres').style.display=($('c-type').value==='Travaille')?'flex':'none'; }
+  function cTypeChg(){ const t=$('c-type').value; $('c-hres').style.display=(t==='Travaille')?'flex':'none'; const mw=$('c-motif-wrap'); if(mw) mw.style.display=(t==='Travaille')?'none':'block'; }
   async function dfSave(key){
     const type=$('c-type').value;
     const v=type==='Travaille'?(+$('c-v').value||0):0, dj=type==='Travaille'?(+$('c-dj').value||0):0, dn=type==='Travaille'?(+$('c-dn').value||0):0;
     const com=$('c-com').value.trim()||null;
+    const motif=(type!=='Travaille' && $('c-motif') && $('c-motif').value!=='—')?$('c-motif').value:null;
     const cur=dfMap[key];
     const avant=cur?{type:cur.type,vigne:+cur.vigne,dist_jour:+cur.dist_jour,dist_nuit:+cur.dist_nuit}:null;
     const apres={type,vigne:v,dist_jour:dj,dist_nuit:dn};
     $('c-msg').textContent='Enregistrement…';$('c-msg').className='msg';
-    const up=await sb.from('declarations').upsert([{salarie:dfId,jour:key,type,vigne:v,dist_jour:dj,dist_nuit:dn,maj_le:new Date().toISOString()}],{onConflict:'salarie,jour'});
+    const up=await sb.from('declarations').upsert([{salarie:dfId,jour:key,type,vigne:v,dist_jour:dj,dist_nuit:dn,motif:motif,maj_le:new Date().toISOString()}],{onConflict:'salarie,jour'});
     if(up.error){$('c-msg').textContent='Erreur : '+up.error.message;$('c-msg').className='msg err';return;}
     const jr=await sb.from('journal').insert([{salarie:dfId,jour:key,avant,apres,par:USER.id,commentaire:com}]);
     if(jr.error){$('c-msg').textContent='Erreur journal : '+jr.error.message;$('c-msg').className='msg err';return;}
@@ -599,7 +603,25 @@
       <div class="k"><div class="l">Projection 31/12</div><div class="v ${proj>=0?'pos':'neg'}">${(proj>=0?'+':'')+proj} h</div></div>
       <div class="k"><div class="l">HS payées (mois validés)</div><div class="v">${th} h</div></div>
       <div class="k"><div class="l">Heures de nuit (année)</div><div class="v">${tn} h</div></div>`;
-    window.offData={nom:dfNom,an,faites:[...Array(12)].map((_,m)=>faites(m)),afaire:[...Array(12)].map((_,m)=>afaire(m)),reel:reel.slice(),diff:[...Array(12)].map((_,m)=>diff(m)),hs:hs.slice(),nuit:[...Array(12)].map((_,m)=>nuit(m)),reste:[...Array(12)].map((_,m)=>reste(m)),rc,proj,tn,th};
+    const absYear=(dec||[]).filter(r=>r.type!=='Travaille').map(r=>({jour:r.jour,type:r.type}));
+    window.offData={nom:dfNom,an,faites:[...Array(12)].map((_,m)=>faites(m)),afaire:[...Array(12)].map((_,m)=>afaire(m)),reel:reel.slice(),diff:[...Array(12)].map((_,m)=>diff(m)),hs:hs.slice(),nuit:[...Array(12)].map((_,m)=>nuit(m)),reste:[...Array(12)].map((_,m)=>reste(m)),rc,proj,tn,th,abs:absYear};
+    const rpf=await sb.from('profiles').select('taux_s1,taux_s2,conges_droit').eq('id',dfId).single(); const pf=rpf.data||{};
+    const congeArr=(dec||[]).filter(r=>r.type==='Conge').map(r=>r.jour);
+    const congesOuvr=r1(periodesDe(congeArr).reduce((s,x)=>s+ouvrPeriode(x[0],x[1]),0));
+    const droitC=+pf.conges_droit||0;
+    const ist='width:82px;padding:5px;border:1px solid var(--bleu2);border-radius:5px;text-align:center;background:var(--jaune)';
+    $('off-panels').innerHTML=
+      '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">'
+      +'<div style="flex:1;min-width:240px;background:#fff;border:1px solid var(--bord);border-radius:10px;padding:12px"><div style="font-weight:600;margin-bottom:8px">Taux horaire</div>'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px"><span style="font-size:13px">1er semestre (janv-juin)</span><span><input type="number" step="0.01" style="'+ist+'" value="'+((+pf.taux_s1)||'')+'" onchange="majTaux(\'taux_s1\',this.value)"> €/h</span></div>'
+        +'<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px">2e semestre (rév. 1er juil.)</span><span><input type="number" step="0.01" style="'+ist+'" value="'+((+pf.taux_s2)||'')+'" onchange="majTaux(\'taux_s2\',this.value)"> €/h</span></div></div>'
+      +'<div style="flex:1;min-width:240px;background:#fff;border:1px solid var(--bord);border-radius:10px;padding:12px"><div style="font-weight:600;margin-bottom:8px">Congés '+an+'</div>'
+        +'<div style="font-size:14px;margin-bottom:6px">Pris : <b>'+congesOuvr+' j ouvrables</b></div>'
+        +'<div style="font-size:14px;margin-bottom:8px">Solde restant : <b style="color:var(--bleu)">'+r1(droitC-congesOuvr)+' / '+droitC+' j</b></div>'
+        +'<div style="font-size:12px;color:var(--gris)">Droit annuel : <input type="number" step="1" style="'+ist+'" value="'+droitC+'" onchange="majDroit(this.value)"> j</div></div>'
+      +'</div>'
+      +'<div style="font-weight:600;color:var(--bleu);margin:0 0 8px">Congés &amp; absences de l\'année</div>'
+      +recapAbs(absYear);
   }
   function exportOfficiel(){
     const d=window.offData; if(!d){alert('Ouvre d\'abord un tableau officiel.');return;}
@@ -669,6 +691,7 @@
       +'<div class="k"><div class="l">HS payées (année)</div><div class="v">'+d.th+' h</div></div>'
       +'<div class="k"><div class="l">Heures de nuit (année)</div><div class="v">'+d.tn+' h</div></div>'
       +'</div><table>'+thead+tb+'</table>'
+      +'<div style="margin-top:16px;font-weight:600;color:#1F4E78">Congés &amp; absences de l\'année</div>'+recapAbs(d.abs||[])
       +'<div class="foot">La Quantinerie · suivi des heures · base annualisée 134 h/mois (1607 h/an) · les heures de nuit sont incluses dans les heures faites.</div>'
       +'</body></html>';
     const w=window.open('','_blank'); if(!w){alert('Autorise les fenêtres pop-up pour imprimer.');return;}
@@ -819,6 +842,20 @@
     if(error){alert('Erreur : '+error.message);return;}
     loadDocs();
   }
+
+  function periodesDe(isoArr){const a2=isoArr.slice().sort();const o=[];let a=null,p=null;a2.forEach(s=>{const dt=new Date(s);if(a&&(dt-p)/864e5<=3){p=dt;}else{if(a)o.push([a,p]);a=dt;p=dt;}});if(a)o.push([a,p]);return o;}
+  function recapAbs(abs){
+    if(!abs||!abs.length) return '<div style="font-size:13px;color:#777">Aucune absence enregistrée cette année.</div>';
+    const fmtd=d=>pad(d.getDate())+'/'+pad(d.getMonth()+1);
+    const grp={}; abs.forEach(a=>{(grp[a.type]=grp[a.type]||[]).push(a.jour);});
+    const per2=arr=>periodesDe(arr).map(x=>fmtd(x[0])+(x[0].getTime()!==x[1].getTime()?'→'+fmtd(x[1]):''));
+    const order=[['Conge','Congés'],['Recup HS','Récup HS'],['Recup distillation','Récup distillation'],['Autre absence payee','Absence payée (événement)'],['Ferie','Fériés'],['Autre absence','Autre absence']];
+    let rows='';
+    order.forEach(o=>{ if(grp[o[0]]&&grp[o[0]].length){ rows+='<tr><td style="border:1px solid #ddd;padding:6px 9px;font-weight:600;background:#FAFAF7">'+o[1]+'</td><td style="border:1px solid #ddd;padding:6px 9px;text-align:center">'+grp[o[0]].length+' j</td><td style="border:1px solid #ddd;padding:6px 9px;font-size:12px">'+per2(grp[o[0]]).join(' · ')+'</td></tr>'; } });
+    return '<table style="border-collapse:collapse;font-size:13px;width:100%"><thead><tr><th style="border:1px solid #ddd;padding:6px 9px;background:#1F4E78;color:#fff;text-align:left">Type</th><th style="border:1px solid #ddd;padding:6px 9px;background:#1F4E78;color:#fff">Jours</th><th style="border:1px solid #ddd;padding:6px 9px;background:#1F4E78;color:#fff;text-align:left">Dates / périodes</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  }
+  async function majTaux(champ,val){ const o={}; o[champ]=parseFloat((''+val).replace(',','.'))||0; const {error}=await sb.from('profiles').update(o).eq('id',dfId); if(error)alert('Erreur : '+error.message); }
+  async function majDroit(val){ const v=parseFloat((''+val).replace(',','.'))||0; const {error}=await sb.from('profiles').update({conges_droit:v}).eq('id',dfId); if(error){alert('Erreur : '+error.message);return;} renderOfficiel(); }
 
   // ---------- DÉMARRAGE ----------
   (async()=>{const {data:{session}}=await sb.auth.getSession();if(session)await demarrer();else vue('vue-login');})();
