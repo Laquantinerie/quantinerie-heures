@@ -580,11 +580,12 @@
     const now=new Date(), nowY=now.getFullYear(), nowM=now.getMonth();
     const lastM=(an<nowY)?11:(an>nowY?-1:nowM);
     let rc=0; for(let m=0;m<=lastM;m++) rc+=reste(m); rc=r1(rc);
-    const proj=somme(reste), tn=somme(nuit), th=r1(hs.reduce((a,b)=>a+b,0));
+    const proj=somme(reste), tn=somme(nuit);
+    const th=r1([...Array(12)].reduce((a,_,m)=> a + (valSet.has(m+1)?hs[m]:0), 0));
     $('off-kpis').innerHTML=`
       <div class="k"><div class="l">Reste à régulariser (à ce jour)</div><div class="v ${rc>=0?'pos':'neg'}">${(rc>=0?'+':'')+rc} h</div></div>
       <div class="k"><div class="l">Projection 31/12</div><div class="v ${proj>=0?'pos':'neg'}">${(proj>=0?'+':'')+proj} h</div></div>
-      <div class="k"><div class="l">HS payées (année)</div><div class="v">${th} h</div></div>
+      <div class="k"><div class="l">HS payées (mois validés)</div><div class="v">${th} h</div></div>
       <div class="k"><div class="l">Heures de nuit (année)</div><div class="v">${tn} h</div></div>`;
     window.offData={nom:dfNom,an,faites:[...Array(12)].map((_,m)=>faites(m)),afaire:[...Array(12)].map((_,m)=>afaire(m)),reel:reel.slice(),diff:[...Array(12)].map((_,m)=>diff(m)),hs:hs.slice(),nuit:[...Array(12)].map((_,m)=>nuit(m)),reste:[...Array(12)].map((_,m)=>reste(m)),rc,proj,tn,th};
   }
