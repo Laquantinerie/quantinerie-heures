@@ -124,6 +124,7 @@
           <div class="lab" id="hist-lab"></div>
           <button onclick="histMois(1)">›</button>
         </div>
+        <div id="hist-tot" class="banniere"></div>
         <div class="cal" id="hist-cal"></div>
         <div style="margin-top:8px"><button class="btn btn2" style="max-width:280px;margin:0" onclick="imprimerCalendrier(window.histMap, hMois.getFullYear(), hMois.getMonth(), 'Mon planning', PROFIL.nom)">🖨 Imprimer ce mois</button></div>
         <div class="foot">Historique en lecture seule. Vert = vigne · Orange = distillerie · Gris = absence.</div>
@@ -403,7 +404,9 @@
     $('hist-lab').textContent=MOISNOM[mo]+' '+an;
     const d1=new Date(an,mo,1),d2=new Date(an,mo+1,0);
     const {data}=await sb.from('declarations').select('*').eq('salarie',USER.id).gte('jour',iso(d1)).lte('jour',iso(d2));
-    const map={};(data||[]).forEach(r=>map[r.jour]=r);
+    const map={}; let tot=0;
+    (data||[]).forEach(r=>{ map[r.jour]=r; if(r.type==='Travaille') tot+=(+r.vigne||0)+(+r.dist_jour||0)+(+r.dist_nuit||0); });
+    const b=$('hist-tot'); b.style.background='var(--vertbg)'; b.style.color='var(--vert)'; b.textContent='Total travaillé du mois : '+r1(tot)+' h';
     window.histMap=map; $('hist-cal').innerHTML=buildCal(map,an,mo);
   }
 
