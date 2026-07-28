@@ -153,7 +153,7 @@
           <div class="kpis" id="off-kpis"></div>
           <div class="xl" style="overflow-x:auto"><table id="off-table"></table></div>
           <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" style="max-width:240px;margin:0" onclick="exportOfficiel()">📥 Exporter en Excel</button><button class="btn btn2" style="max-width:300px;margin:0" onclick="imprimerOfficiel()">🖨 Imprimer / PDF (A4 paysage)</button></div>
-          <div class="foot">« Heures faites » est calculée depuis les déclarations, mais modifiable pour <b>simuler les mois à venir</b> (projection de fin d'année). « Payé au réel », « HS payées » et « nuit » sont aussi modifiables. Base annualisée : 134 h/mois (1607 h/an, congés déjà déduits). « Heures faites » = <b>heures réellement travaillées</b> ; les absences (congé, férié, récup) ne sont pas comptées comme du travail. Un mois de congés affiche donc un déficit normal, qui s'équilibre sur l'année. Le « reste à ce jour » ne compte que les mois écoulés ; la projection 31/12 intègre tes estimations. 🔴 Le traitement exact des absences dans l'annualisation est à confirmer avec ta paie.</div>
+          <div class="foot">« Heures faites » est calculée depuis les déclarations, mais modifiable pour <b>simuler les mois à venir</b> (projection de fin d'année). « Payé au réel », « HS payées » et « nuit » sont aussi modifiables. Base annualisée : 134 h/mois (1607 h/an, congés déjà déduits). « Heures faites » = <b>heures réellement travaillées</b> ; les absences (congé, férié, récup) ne sont pas comptées comme du travail. Un mois de congés affiche donc un déficit normal, qui s'équilibre sur l'année. <b>Exception</b> : une <b>absence payée pour événement familial</b> compte comme 7 h (elle n'est pas incluse dans la base 134 h). Le « reste à ce jour » ne compte que les mois écoulés ; la projection 31/12 intègre tes estimations. 🔴 Le traitement exact des absences dans l'annualisation est à confirmer avec ta paie.</div>
         </div>
         <div id="pan-cal" class="hidden">
           <div class="semnav"><button onclick="dfMois(-1)">‹</button><div class="lab" id="df-lab"></div><button onclick="dfMois(1)">›</button></div>
@@ -561,7 +561,9 @@
     const an=offAn; $('off-lab').textContent='Année '+an;
     const {data:dec}=await sb.from('declarations').select('jour,type,vigne,dist_jour,dist_nuit').eq('salarie',dfId).gte('jour',an+'-01-01').lte('jour',an+'-12-31');
     const cFaites=Array(12).fill(0), cNuit=Array(12).fill(0);
-    (dec||[]).forEach(r=>{ if(r.type==='Travaille'){ const m=+r.jour.slice(5,7)-1; cFaites[m]+=(+r.vigne||0)+(+r.dist_jour||0)+(+r.dist_nuit||0); cNuit[m]+=(+r.dist_nuit||0); } });
+    (dec||[]).forEach(r=>{ const m=+r.jour.slice(5,7)-1;
+      if(r.type==='Travaille'){ cFaites[m]+=(+r.vigne||0)+(+r.dist_jour||0)+(+r.dist_nuit||0); cNuit[m]+=(+r.dist_nuit||0); }
+      else if(r.type==='Autre absence payee'){ cFaites[m]+=7; /* absence payée événement familial : non déduite de la base 134, donc comptée présente */ } });
     const {data:mo}=await sb.from('mois').select('*').eq('salarie',dfId).eq('annee',an);
     const reel=Array(12).fill(0), hs=Array(12).fill(0), nm=Array(12).fill(0), fo=Array(12).fill(0);
     (mo||[]).forEach(r=>{ reel[r.mois-1]=+r.reel||0; hs[r.mois-1]=+r.hs_payees||0; nm[r.mois-1]=+r.nuit||0; fo[r.mois-1]=+r.faites||0; });
