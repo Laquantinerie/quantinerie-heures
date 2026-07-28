@@ -243,24 +243,40 @@
   async function renderCompteurs(){
     const an=(new Date()).getFullYear(), moNow=(new Date()).getMonth();
     const {data:dec}=await sb.from('declarations').select('jour,type,vigne,dist_jour,dist_nuit').eq('salarie',USER.id).gte('jour',an+'-01-01').lte('jour',an+'-12-31');
-    let hA=0,hM=0,nA=0,cg=0,rh=0,rd=0,ab=0;
+    let hA=0,hM=0,cg=0,rh=0,rd=0,ab=0; const cN=Array(12).fill(0);
     (dec||[]).forEach(r=>{ const m=+r.jour.slice(5,7)-1;
-      if(r.type==='Travaille'){ const w=(+r.vigne||0)+(+r.dist_jour||0)+(+r.dist_nuit||0); hA+=w; if(m===moNow)hM+=w; nA+=(+r.dist_nuit||0); }
+      if(r.type==='Travaille'){ const w=(+r.vigne||0)+(+r.dist_jour||0)+(+r.dist_nuit||0); hA+=w; if(m===moNow)hM+=w; cN[m]+=(+r.dist_nuit||0); }
       else if(r.type==='Conge') cg++; else if(r.type==='Recup HS') rh++; else if(r.type==='Recup distillation') rd++; else if(r.type==='Autre absence') ab++;
     });
-    const {data:mo}=await sb.from('mois').select('hs_payees').eq('salarie',USER.id).eq('annee',an);
-    let hs=0; (mo||[]).forEach(r=>hs+=(+r.hs_payees||0));
+    let hs=0; const nmA=Array(12).fill(0);
+    const rmo=await sb.from('mois').select('hs_payees,nuit,mois').eq('salarie',USER.id).eq('annee',an);
+    (rmo.data||[]).forEach(r=>{ hs+=(+r.hs_payees||0); nmA[r.mois-1]=+r.nuit||0; });
+    let nA=0; for(let m=0;m<12;m++) nA += cN[m]>0?cN[m]:nmA[m]; nA=r1(nA);
+    const rp=await sb.from('profiles').select('conges_droit').eq('id',USER.id).single();
+    const droit=rp.data?(+rp.data.conges_droit||0):0, solde=r1(droit-cg);
+    const rrd=await sb.from('recup_dist').select('jours').eq('salarie',USER.id).eq('annee',an).maybeSingle();
+    const droitRD=rrd.data?(+rrd.data.jours||0):0;
+    const per=arr=>{const o=[];let a=null,p=null,n=0;arr.forEach(s=>{const d=new Date(s);if(a&&(d-p)/864e5<=3){p=d;n++;}else{if(a)o.push([a,p,n]);a=d;p=d;n=1;}});if(a)o.push([a,p,n]);return o;};
+    const fmtd=d=>pad(d.getDate())+'/'+pad(d.getMonth()+1);
+    const listP=arr=>{const P=per(arr);return P.length?('<ul style="margin:6px 0 0;padding-left:18px;font-size:13px">'+P.map(x=>'<li>'+fmtd(x[0])+' → '+fmtd(x[1])+' <b>('+x[2]+' j)</b></li>').join('')+'</ul>'):'<div style="font-size:13px;color:var(--gris)">Aucun pour l\'instant.</div>';};
+    const congeArr=(dec||[]).filter(r=>r.type==='Conge').map(r=>r.jour).sort();
+    const recupArr=(dec||[]).filter(r=>r.type==='Recup HS'||r.type==='Recup distillation').map(r=>r.jour).sort();
     const card=(l,v)=>`<div class="k"><div class="l">${l}</div><div class="v">${v}</div></div>`;
+    const titre=t=>'<div style="font-size:14px;font-weight:600;margin:16px 0 8px">'+t+'</div>';
+    const box=c=>'<div style="background:#fff;border:1px solid var(--bord);border-radius:10px;padding:10px 14px">'+c+'</div>';
     $('cpt').innerHTML='<div class="kpis">'
       +card('Heures ce mois-ci', r1(hM)+' h')
       +card('Heures cumulées '+an, r1(hA)+' h')
       +card('dont heures de nuit', r1(nA)+' h')
       +card('Heures sup payées '+an, r1(hs)+' h')
-      +card('Congés pris', cg+' j')
-      +card('Récup HS prise', rh+' j')
-      +card('Récup distillation', rd+' / 3 j')
-      +card('Autres absences', ab+' j')
-      +'</div><p class="foot">Compteurs de l\'année en cours. Le solde de congés restants et la régularisation annuelle sont suivis par la Direction.</p>';
+      +'</div>'
+      +titre('Congés '+an)
+      +'<div class="kpis">'+card('Congés pris', cg+' j')+card('Solde restant', solde+' / '+droit+' j')+'</div>'
+      +box('Périodes déjà prises :'+listP(congeArr))
+      +titre('Récup & absences')
+      +'<div class="kpis">'+card('Récup HS prise', rh+' j')+((droitRD>0||rd>0)?card('Récup distillation', rd+' / '+droitRD+' j'):'')+card('Autres absences', ab+' j')+'</div>'
+      +(recupArr.length?box('Récup déjà prises :'+listP(recupArr)):'')
+      +'<p class="foot">Congés déjà effectués (dates ci-dessus) et solde indicatif (droit annuel − jours pris). Le décompte précis est validé par la Direction / la paie.</p>';
   }
   function semaine(n){lundi=addJ(lundi,7*n);renderSemaine();}
 
