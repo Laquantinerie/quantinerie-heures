@@ -817,7 +817,7 @@
   function fermerDocs(){ $('vue-docs').classList.add('hidden'); if(vueAvant)$(vueAvant).classList.remove('hidden'); }
   async function loadDocs(){
     const dir = PROFIL && PROFIL.role==='direction';
-    $('docs-upload').innerHTML = dir ? '<div style="background:#fff;border:1px solid var(--bord);border-radius:10px;padding:14px;margin-bottom:14px"><label style="font-size:13px;color:var(--gris)">Ajouter un document (PDF, image…)</label><br><input id="doc-file" type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" style="margin:8px 0"><br><button class="btn" style="max-width:240px;margin:6px 0 0" onclick="uploadDoc()">Déposer le document</button><div id="doc-msg" class="msg"></div></div>' : '';
+    $('docs-upload').innerHTML = dir ? '<div style="background:#fff;border:1px solid var(--bord);border-radius:10px;padding:14px;margin-bottom:14px"><label style="font-size:13px;color:var(--gris)">Ajouter un document (PDF, image…)</label><br><input id="doc-file" type="file" accept=".pdf,.xlsx,.xls,.csv,.doc,.docx,.ppt,.pptx,.odt,.ods,.png,.jpg,.jpeg,.gif,.txt" style="margin:8px 0"><br><button class="btn" style="max-width:240px;margin:6px 0 0" onclick="uploadDoc()">Déposer le document</button><div id="doc-msg" class="msg"></div></div>' : '';
     const {data,error}=await sb.from('documents').select('*').order('le',{ascending:false});
     if(error){$('docs-list').innerHTML='<div class="foot">Erreur : '+error.message+'</div>';return;}
     if(!data||!data.length){$('docs-list').innerHTML='<div style="font-size:13px;color:var(--gris)">Aucun document pour l\'instant.</div>';return;}
