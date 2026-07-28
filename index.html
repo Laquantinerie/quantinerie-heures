@@ -160,7 +160,10 @@
           <div id="df-banner" class="banniere"></div>
           <div class="cal" id="df-cal"></div>
           <div style="margin-top:8px"><button class="btn btn2" style="max-width:280px;margin:0" onclick="imprimerCalendrier(dfMap, dfMoisD.getFullYear(), dfMoisD.getMonth(), 'Calendrier officiel', dfNom)">🖨 Imprimer ce mois</button></div>
-          <div class="foot">Clique un jour pour le corriger. Point rouge = jour déjà corrigé. La valeur d'origine du salarié n'est jamais effacée.</div>
+          <div style="font-size:14px;font-weight:600;margin:18px 0 8px">Contrôle 48 h — semaines (lun → dim)</div>
+          <div id="df-sem"></div>
+          <div id="df-derog" style="margin-top:10px;font-size:13px"></div>
+          <div class="foot">Vert = OK · Orange = proche de la limite · Rouge = dépassement à traiter. Pendant les vendanges, active une <b>dérogation</b> : la limite passe à 60 h.</div>
           <div id="df-edit"></div>
         </div>
         <div id="pan-decl" class="hidden">
@@ -212,6 +215,8 @@
   function iso(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
   function lundiDe(d){const x=new Date(d);x.setDate(x.getDate()-((x.getDay()+6)%7));x.setHours(0,0,0,0);return x;}
   function addJ(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
+  function dateInDerog(d){const s=iso(d);return (window.DEROG||[]).some(p=> s>=p.debut && s<=p.fin);}
+  function weekDerog(monday){for(let i=0;i<7;i++){if(dateInDerog(addJ(monday,i)))return true;}return false;}
   function r1(v){return Math.round(v*10)/10;}
   function labelType(v){const t=TYPES.find(x=>x[0]===v);return t?t[1]:v;}
 
@@ -235,6 +240,7 @@
     USER=user;
     const {data:p}=await sb.from('profiles').select('nom,role').eq('id',user.id).single();
     PROFIL=p||{nom:user.email,role:'salarie'};
+    const dg=await sb.from('derogations').select('*'); window.DEROG=dg.data||[];
     $('who').textContent=PROFIL.nom;
     vue('vue-app');
     if(PROFIL.role==='direction'){ document.querySelector('.wrap').classList.add('large'); $('vue-direction').classList.remove('hidden'); $('vue-salarie').classList.add('hidden'); dMoisDir=new Date(); dMoisDir.setDate(1); await renderDirListe(); }
@@ -335,10 +341,11 @@
     let tot=0;
     for(let i=0;i<7;i++){const jt=r1(jourTotal(i));tot+=jt;$('jtot-'+i).textContent=jt?jt+' h':( $('type-'+i).value!=='Travaille'?labelType($('type-'+i).value):'');}
     tot=r1(tot);
+    const derog=weekDerog(lundi), lim=derog?60:48;
     const b=$('banniere48');
-    if(tot>48){b.style.background='var(--rougebg)';b.style.color='var(--rouge)';b.textContent='⚠ '+tot+' h cette semaine — au-delà de 48 h. Signale-le à la Direction.';}
-    else if(tot>=45){b.style.background='var(--orbg)';b.style.color='var(--orange)';b.textContent=tot+' h cette semaine — proche de la limite de 48 h.';}
-    else{b.style.background='var(--vertbg)';b.style.color='var(--vert)';b.textContent=tot+' h cette semaine.';}
+    if(tot>lim){b.style.background='var(--rougebg)';b.style.color='var(--rouge)';b.textContent='⚠ '+tot+' h cette semaine — au-delà de '+lim+' h. Signale-le à la Direction.';}
+    else if(tot>=lim-3){b.style.background='var(--orbg)';b.style.color='var(--orange)';b.textContent=tot+' h cette semaine — proche de la limite de '+lim+' h'+(derog?' (dérogation vendanges)':'')+'.';}
+    else{b.style.background='var(--vertbg)';b.style.color='var(--vert)';b.textContent=tot+' h cette semaine'+(derog?' — dérogation vendanges (limite 60 h)':'')+'.';}
   }
   async function enregistrerSemaine(){
     $('btn-save').disabled=true; $('msg-save').textContent='Enregistrement…'; $('msg-save').className='msg';
@@ -427,6 +434,37 @@
     $('df-valid').innerHTML = est
       ? `<div class="banniere" style="background:var(--vertbg);color:var(--vert);display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0">✓ Mois validé — saisie verrouillée pour le salarié (tu peux toujours corriger, avec trace).<button class="derogb" onclick="devaliderMois()">Dévalider</button></div>`
       : `<button class="btn" style="max-width:320px;margin:0" onclick="validerMois()">✓ Valider ce mois (verrouiller la saisie du salarié)</button>`;
+    // Contrôle 48 h par semaine
+    let start=new Date(an,mo,1); start.setDate(start.getDate()-((start.getDay()+6)%7));
+    const fin2=new Date(an,mo+1,0); let sh='', cur=new Date(start);
+    while(cur<=fin2){
+      const ws=new Date(cur); let tt=0,has=false;
+      for(let i=0;i<7;i++){const rr=dfMap[iso(addJ(ws,i))]; if(rr&&rr.type==='Travaille'){const w=(+rr.vigne||0)+(+rr.dist_jour||0)+(+rr.dist_nuit||0); tt+=w; if(w>0)has=true;}}
+      tt=r1(tt); const dg=weekDerog(ws), lim=dg?60:48; const we=addJ(ws,6);
+      let bg,fg,st;
+      if(tt>lim){bg='#FBECEA';fg='#C0392B';st='Dépassement '+lim+' h';}
+      else if(tt>=lim-3){bg='#FBF3D9';fg='#8A6D00';st='Proche '+lim+' h';}
+      else{bg='#E9F5EC';fg='#2E7D32';st=dg?'OK (dérog. 60 h)':'OK ≤ 48 h';}
+      if(has) sh+='<div style="display:flex;align-items:center;gap:12px;background:'+bg+';border-radius:9px;padding:9px 12px;margin-bottom:6px"><b style="min-width:130px">'+pad(ws.getDate())+'/'+pad(ws.getMonth()+1)+' → '+pad(we.getDate())+'/'+pad(we.getMonth()+1)+'</b><span style="flex:1;font-weight:600">'+tt+' h</span><span style="color:'+fg+';font-weight:600">'+st+'</span></div>';
+      cur.setDate(cur.getDate()+7);
+    }
+    $('df-sem').innerHTML=sh||'<div style="font-size:13px;color:var(--gris)">Aucune heure ce mois.</div>';
+    const dl=(window.DEROG||[]).map(p=>'<span style="display:inline-block;background:#EEF6FF;color:var(--bleu);border-radius:16px;padding:3px 10px;margin:0 6px 6px 0">'+(p.libelle||'Dérogation')+' : '+p.debut+' → '+p.fin+' <a onclick="supprDerog(\''+p.id+'\')" style="cursor:pointer;color:var(--rouge);font-weight:700">✕</a></span>').join('');
+    $('df-derog').innerHTML='<b>Périodes de dérogation (60 h) :</b> '+(dl||'<span style="color:var(--gris)">aucune</span>')+' <button class="derogb" onclick="ajoutDerog()">+ Ajouter une période</button>';
+  }
+  async function ajoutDerog(){
+    const deb=prompt('Début de la dérogation (AAAA-MM-JJ) ?','2026-08-15'); if(!deb)return;
+    const fin=prompt('Fin de la dérogation (AAAA-MM-JJ) ?','2026-10-10'); if(!fin)return;
+    const lib=prompt('Nom de la période ?','Vendanges')||'Vendanges';
+    const {error}=await sb.from('derogations').insert([{debut:deb,fin:fin,libelle:lib}]);
+    if(error){alert('Erreur : '+error.message);return;}
+    const {data}=await sb.from('derogations').select('*'); window.DEROG=data||[]; renderDirFiche();
+  }
+  async function supprDerog(id){
+    if(!confirm('Supprimer cette période de dérogation ?'))return;
+    const {error}=await sb.from('derogations').delete().eq('id',id);
+    if(error){alert('Erreur : '+error.message);return;}
+    const {data}=await sb.from('derogations').select('*'); window.DEROG=data||[]; renderDirFiche();
   }
   async function validerMois(){
     const an=dfMoisD.getFullYear(), mo=dfMoisD.getMonth()+1;
