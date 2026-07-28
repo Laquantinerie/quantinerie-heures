@@ -136,6 +136,7 @@
       <div id="dir-liste">
         <div class="semnav"><button onclick="dirMois(-1)">‹</button><div class="lab" id="dir-lab"></div><button onclick="dirMois(1)">›</button></div>
         <div id="dir-table"></div>
+        <div style="margin-top:10px"><button class="btn" style="max-width:320px;margin:0" onclick="ouvrirSynthese()">📋 Synthèse de paie de ce mois</button></div>
         <div class="foot">Heures du mois calculées à partir des déclarations des salariés. Clique un salarié pour voir son détail.</div>
       </div>
       <div id="dir-fiche" class="hidden">
@@ -169,6 +170,13 @@
           <div style="margin-top:8px"><button class="btn btn2" style="max-width:280px;margin:0" onclick="imprimerCalendrier(window.dmMap, dfMoisD.getFullYear(), dfMoisD.getMonth(), 'Déclaration d\'origine', dfNom)">🖨 Imprimer ce mois</button></div>
           <div class="foot">Vert = vigne · Orange = distillerie · Gris = absence. Lecture seule.</div>
         </div>
+      </div>
+      <div id="dir-synthese" class="hidden">
+        <button class="btn btn2" style="width:auto;margin:0 0 12px" onclick="retourSyn()">‹ Retour au tableau de bord</button>
+        <div class="semnav"><button onclick="synMois(-1)">‹</button><div class="lab" id="syn-lab"></div><button onclick="synMois(1)">›</button></div>
+        <div class="xl" style="overflow-x:auto"><table id="syn-table"></table></div>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" style="max-width:240px;margin:0" onclick="exportSynthese()">📥 Exporter en Excel</button><button class="btn btn2" style="max-width:300px;margin:0" onclick="imprimerSynthese()">🖨 Imprimer / PDF (A4 paysage)</button></div>
+        <div class="foot">Éléments à transmettre pour la paie du mois — heures travaillées, nuit, HS payées, jours de congé / récup / absence. Calculés depuis les déclarations.</div>
       </div>
     </div>
 
@@ -670,6 +678,51 @@
      +'</body></html>';
     const w=window.open('','_blank'); if(!w){alert('Autorise les fenêtres pop-up pour imprimer.');return;}
     w.document.write(html); w.document.close(); w.focus(); setTimeout(()=>{w.print();},400);
+  }
+
+  let synMoisD=null, synData=null;
+  function ouvrirSynthese(){ synMoisD=new Date(dMoisDir); $('dir-liste').classList.add('hidden'); $('dir-synthese').classList.remove('hidden'); renderSynthese(); }
+  function retourSyn(){ $('dir-synthese').classList.add('hidden'); $('dir-liste').classList.remove('hidden'); }
+  function synMois(n){ synMoisD.setMonth(synMoisD.getMonth()+n); renderSynthese(); }
+  async function renderSynthese(){
+    const an=synMoisD.getFullYear(), mo=synMoisD.getMonth();
+    $('syn-lab').textContent='Paie — '+MOISNOM[mo]+' '+an;
+    const d1=new Date(an,mo,1), d2=new Date(an,mo+1,0);
+    const {data:sal}=await sb.from('profiles').select('id,nom').eq('role','salarie').order('nom');
+    const {data:dec}=await sb.from('declarations').select('salarie,type,vigne,dist_jour,dist_nuit').gte('jour',iso(d1)).lte('jour',iso(d2));
+    const {data:mm}=await sb.from('mois').select('salarie,hs_payees,nuit').eq('annee',an).eq('mois',mo+1);
+    const by={}; (sal||[]).forEach(s=>by[s.id]={nom:s.nom,trav:0,nuit:0,hs:0,cg:0,rh:0,rd:0,fe:0,ab:0});
+    (dec||[]).forEach(r=>{ const o=by[r.salarie]; if(!o)return;
+      if(r.type==='Travaille'){o.trav+=(+r.vigne||0)+(+r.dist_jour||0)+(+r.dist_nuit||0);o.nuit+=(+r.dist_nuit||0);}
+      else if(r.type==='Conge')o.cg++; else if(r.type==='Recup HS')o.rh++; else if(r.type==='Recup distillation')o.rd++; else if(r.type==='Ferie')o.fe++; else if(r.type==='Autre absence')o.ab++;
+    });
+    (mm||[]).forEach(x=>{ const o=by[x.salarie]; if(!o)return; o.hs=+x.hs_payees||0; if(o.nuit===0)o.nuit=+x.nuit||0; });
+    const rows=Object.values(by); synData={an,mo,rows};
+    let t='<thead><tr><th class="g">Salarié</th><th>Heures travaillées</th><th>dont nuit</th><th>HS payées</th><th>Congé (j)</th><th>Récup HS (j)</th><th>Récup dist (j)</th><th>Autre abs (j)</th></tr></thead><tbody>';
+    rows.forEach(o=>{ t+='<tr><td class="g">'+o.nom+'</td><td>'+r1(o.trav)+' h</td><td>'+(o.nuit?r1(o.nuit)+' h':'')+'</td><td>'+(o.hs?r1(o.hs)+' h':'')+'</td><td>'+(o.cg||'')+'</td><td>'+(o.rh||'')+'</td><td>'+(o.rd||'')+'</td><td>'+(o.ab||'')+'</td></tr>'; });
+    t+='</tbody>'; $('syn-table').innerHTML=t;
+  }
+  function exportSynthese(){ if(!synData)return;
+    const H=['Salarié','Heures travaillées','dont nuit','HS payées','Congé (j)','Récup HS (j)','Récup dist (j)','Autre abs (j)'];
+    const L=[['Synthèse de paie — '+MOISNOM[synData.mo]+' '+synData.an],[],H];
+    synData.rows.forEach(o=>L.push([o.nom,r1(o.trav),r1(o.nuit),r1(o.hs),o.cg,o.rh,o.rd,o.ab]));
+    const csv=L.map(r=>r.map(c=>(''+(c==null?'':c)).replace('.',',')).join(';')).join('\n');
+    const b=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='synthese_paie_'+MOISNOM[synData.mo]+'_'+synData.an+'.csv'; document.body.appendChild(a); a.click(); a.remove();
+  }
+  function imprimerSynthese(){ if(!synData)return;
+    const logo=(document.querySelector('#vue-login .logo')||{}).src||'';
+    const H=['Salarié','Heures travaillées','dont nuit','HS payées','Congé (j)','Récup HS (j)','Récup dist (j)','Autre abs (j)'];
+    let rows=''; synData.rows.forEach(o=>{ rows+='<tr><td class="g">'+o.nom+'</td><td>'+r1(o.trav)+' h</td><td>'+(o.nuit?r1(o.nuit)+' h':'')+'</td><td>'+(o.hs?r1(o.hs)+' h':'')+'</td><td>'+(o.cg||'')+'</td><td>'+(o.rh||'')+'</td><td>'+(o.rd||'')+'</td><td>'+(o.ab||'')+'</td></tr>'; });
+    const html='<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Synthèse paie '+MOISNOM[synData.mo]+' '+synData.an+'</title><style>'
+      +'@page{size:A4 landscape;margin:10mm;} *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;font-family:Arial,sans-serif;box-sizing:border-box;} body{margin:0;color:#20201E;}'
+      +'.head{display:flex;align-items:center;gap:14px;border-bottom:3px solid #1F4E78;padding-bottom:8px;margin-bottom:14px;} .head img{height:44px;} .head h1{font-size:18px;margin:0;color:#1F4E78;} .head .meta{margin-left:auto;text-align:right;font-size:12px;color:#555;}'
+      +'table{width:100%;border-collapse:collapse;font-size:12.5px;} th,td{border:1px solid #ccc;padding:7px 6px;text-align:center;} th:first-child,td:first-child{text-align:left;font-weight:600;background:#FAFAF7;} thead th{background:#1F4E78;color:#fff;} .foot{margin-top:12px;font-size:10px;color:#888;}'
+      +'</style></head><body><div class="head">'+(logo?'<img src="'+logo+'">':'')+'<h1>Synthèse de paie</h1><div class="meta">'+MOISNOM[synData.mo]+' '+synData.an+'<br>Édité le '+new Date().toLocaleDateString('fr-FR')+'</div></div>'
+      +'<table><thead><tr>'+H.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table>'
+      +'<div class="foot">La Quantinerie · éléments de paie du mois · récup HS = 0 h dans l\'annualisation, congé/férié/récup dist neutralisés.</div></body></html>';
+    const w=window.open('','_blank'); if(!w){alert('Autorise les fenêtres pop-up.');return;}
+    w.document.write(html); w.document.close(); w.focus(); setTimeout(()=>w.print(),400);
   }
 
   // ---------- DÉMARRAGE ----------
